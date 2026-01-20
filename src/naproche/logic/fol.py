@@ -1,23 +1,23 @@
 from dataclasses import dataclass
 from typing import List, Union
 
-@dataclass
+@dataclass(frozen=True)
 class Term:
     pass
 
-@dataclass
+@dataclass(frozen=True)
 class Variable(Term):
     name: str
     def __str__(self):
         return self.name.upper()
 
-@dataclass
+@dataclass(frozen=True)
 class Constant(Term):
     name: str
     def __str__(self):
         return self.name.lower()
 
-@dataclass
+@dataclass(frozen=True)
 class Function(Term):
     name: str
     args: List[Term]
@@ -25,11 +25,11 @@ class Function(Term):
         args_str = ",".join(str(a) for a in self.args)
         return f"{self.name}({args_str})"
 
-@dataclass
+@dataclass(frozen=True)
 class Formula:
     pass
 
-@dataclass
+@dataclass(frozen=True)
 class Predicate(Formula):
     name: str
     args: List[Term]
@@ -37,48 +37,48 @@ class Predicate(Formula):
         args_str = ",".join(str(a) for a in self.args)
         return f"{self.name}({args_str})"
 
-@dataclass
+@dataclass(frozen=True)
 class Equal(Formula):
     left: Term
     right: Term
     def __str__(self):
         return f"{self.left} = {self.right}"
 
-@dataclass
+@dataclass(frozen=True)
 class Not(Formula):
     formula: Formula
     def __str__(self):
         return f"~ ({self.formula})"
 
-@dataclass
+@dataclass(frozen=True)
 class And(Formula):
     left: Formula
     right: Formula
     def __str__(self):
         return f"({self.left} & {self.right})"
 
-@dataclass
+@dataclass(frozen=True)
 class Or(Formula):
     left: Formula
     right: Formula
     def __str__(self):
         return f"({self.left} | {self.right})"
 
-@dataclass
+@dataclass(frozen=True)
 class Implies(Formula):
     left: Formula
     right: Formula
     def __str__(self):
         return f"({self.left} => {self.right})"
 
-@dataclass
+@dataclass(frozen=True)
 class Iff(Formula):
     left: Formula
     right: Formula
     def __str__(self):
         return f"({self.left} <=> {self.right})"
 
-@dataclass
+@dataclass(frozen=True)
 class Quantifier(Formula):
     type: str # "forall" or "exists"
     vars: List[Variable]
