@@ -1,0 +1,40 @@
+start: element*
+
+element: directive
+       | environment
+       | sentence
+
+directive: "[" "read" path "]"
+
+path: "\\path{" /[^}]+/ "}"
+
+environment: BEGIN "{" env_name "}" optional_arg? element* END "{" env_name "}"
+
+BEGIN.2: "\\begin"
+END.2: "\\end"
+
+env_name: /[a-zA-Z*]+/
+optional_arg: "[" /[^\]]+/ "]"
+
+sentence: atom+ "."
+
+atom: math | word | other_symbol | punctuation
+
+math: INLINE_MATH | DISPLAY_MATH
+INLINE_MATH: "$" /[^$]+/ "$"
+DISPLAY_MATH: "\\[" /(.|\n)+?/ "\\]"
+
+word: /[a-zA-Z0-9_]+/
+other_symbol: /[^\s\w$.\[\]\\{}]+/ | BACKSLASH | BRACE_OPEN | BRACE_CLOSE | BRACKET_OPEN | BRACKET_CLOSE
+punctuation: "," | ":" | ";"
+
+BACKSLASH: "\\"
+BRACE_OPEN: "{"
+BRACE_CLOSE: "}"
+BRACKET_OPEN: "["
+BRACKET_CLOSE: "]"
+
+COMMENT: "%" /[^\n]*/
+%import common.WS
+%ignore WS
+%ignore COMMENT
