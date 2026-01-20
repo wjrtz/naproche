@@ -13,21 +13,51 @@ class Translator:
             if f:
                 return [self.closure(f)]
             return []
-        elif isinstance(stmt, Definition) or isinstance(stmt, Axiom) or isinstance(stmt, Lemma):
-            formulas = []
-            for s in stmt.content:
-                f = self.translate_sentence(s, as_axiom=True)
-                if f: formulas.append(self.closure(f))
-            return formulas
-        elif isinstance(stmt, Theorem):
-            formulas = []
-            for s in stmt.content:
-                f = self.translate_sentence(s, as_axiom=False)
-                if f: formulas.append(f)
-            return formulas
         elif isinstance(stmt, Directive):
             return []
+        elif isinstance(stmt, Proof):
+            return []
+        elif isinstance(stmt, Definition) or isinstance(stmt, Axiom) or isinstance(stmt, Lemma) or isinstance(stmt, Theorem):
+            return self.translate_block(stmt)
         return []
+
+    def translate_block(self, block: Statement) -> List[Formula]:
+        assumptions = []
+        conclusions = []
+
+        for s in block.content:
+            if not isinstance(s, Sentence):
+                continue
+
+            text = s.text.strip()
+            is_assumption = text.startswith("Let") or text.startswith("Assume")
+
+            f = self.translate_sentence(s, as_axiom=True)
+
+            if f:
+                if is_assumption:
+                    assumptions.append(f)
+                else:
+                    conclusions.append(f)
+
+        if not conclusions:
+            return [self.closure(a) for a in assumptions]
+
+        conc_form = conclusions[0]
+        if len(conclusions) > 1:
+            for c in conclusions[1:]:
+                conc_form = And(conc_form, c)
+
+        if assumptions:
+            asm_form = assumptions[0]
+            if len(assumptions) > 1:
+                for a in assumptions[1:]:
+                    asm_form = And(asm_form, a)
+
+            imp = Implies(asm_form, conc_form)
+            return [self.closure(imp)]
+        else:
+            return [self.closure(conc_form)]
 
     def closure(self, formula: Formula) -> Formula:
         free_vars = self.get_free_vars(formula)
@@ -108,7 +138,6 @@ class Translator:
             if len(formulas) > 1: return And(formulas[0], formulas[1])
 
         if "Let" in atoms_str and "set" in atoms_str:
-            if as_axiom: return None
             v = get_term(atoms_str.index("Let") + 1)
             if v: return Predicate("set", [v])
 
