@@ -13,28 +13,27 @@ def run_prover(axioms: List[Tuple[str, Formula]], conjecture: Tuple[str, Formula
         tmp_path = tmp.name
 
     try:
-        # eprover --auto --silent --cpu-limit=...
-        cmd = ["eprover", "--auto", f"--cpu-limit={timeout}", tmp_path]
+        eprover_path = os.environ.get("NAPROCHE_EPROVER")
+        if not eprover_path:
+            local_path = os.path.abspath("eprover/PROVER/eprover")
+            if os.path.exists(local_path):
+                eprover_path = local_path
+            else:
+                eprover_path = "eprover"
+
+        cmd = [eprover_path, "--auto", "--silent", f"--cpu-limit={timeout}", tmp_path]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
-        # DEBUG output
-        if result.returncode != 0:
-             print(f"Prover failed with code {result.returncode}")
-             print(f"Prover stderr: {result.stderr}")
-
-        # print(f"Prover output:\n{result.stdout}")
-
-        if "# SZS status Theorem" in result.stdout:
+        # Check for SZS status Theorem (ignore leading char # or %)
+        if "SZS status Theorem" in result.stdout:
             return True
-        elif "# SZS status CounterSatisfiable" in result.stdout:
+        elif "SZS status CounterSatisfiable" in result.stdout:
             return False
-        elif "# SZS status Unsatisfiable" in result.stdout:
-             pass
 
         return False
 
     except FileNotFoundError:
-        print("eprover not found.")
+        print(f"eprover not found at {eprover_path}")
         return False
     finally:
         if os.path.exists(tmp_path):
