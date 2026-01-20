@@ -6,8 +6,8 @@ A Python re-implementation of the Naproche system for proof checking of natural 
 
 - **Robust Parsing**: Uses `lark` for flexible CNL parsing.
 - **Parallel Checking**: Verifies proof steps in parallel using multiprocessing.
-- **Caching**: Caches proof results to speed up re-checking.
-- **Prover Integration**: Supports automated theorem provers (currently `eprover`) via TPTP.
+- **Caching**: Caches proof results in an SQLite database (`.naproche_cache.db`) to speed up re-checking.
+- **Prover Integration**: Supports automated theorem provers (currently `eprover`) via TPTP. Included built-in `eprover` binary.
 
 ## Installation
 
@@ -16,14 +16,14 @@ A Python re-implementation of the Naproche system for proof checking of natural 
    ```bash
    pip install lark
    ```
-3. Install `eprover` and ensure it is in your PATH.
+3. The system includes a built `eprover` binary. No external installation required if running in the provided environment.
 
 ## Usage
 
 Check a `.ftl.tex` file:
 
 ```bash
-python3 src/naproche/main.py path/to/file.ftl.tex
+python3 src/naproche/main.py math/examples/cantor.ftl.tex
 ```
 
 ## Structure

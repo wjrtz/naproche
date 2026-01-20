@@ -9,9 +9,6 @@ class Translator:
 
     def translate_statement(self, stmt: Statement) -> List[Formula]:
         if isinstance(stmt, Sentence):
-            # Bare sentence at top level? Treat as claim or axiom?
-            # Default to axiom if not in proof?
-            # But let's assume it's like a theorem statement or definition.
             f = self.translate_sentence(stmt, as_axiom=True)
             if f:
                 return [self.closure(f)]
@@ -25,12 +22,6 @@ class Translator:
         elif isinstance(stmt, Theorem):
             formulas = []
             for s in stmt.content:
-                # Theorem statements: "Let M be a set." -> Constant M.
-                # "No function..." -> Claim.
-                # We need to distinguish.
-                # But simple heuristic: "Let" -> Constant.
-                # "For all" -> Variable.
-                # Actually, translate_sentence needs to know if it should generate Constants or Variables for "Let".
                 f = self.translate_sentence(s, as_axiom=False)
                 if f: formulas.append(f)
             return formulas
@@ -39,11 +30,9 @@ class Translator:
         return []
 
     def closure(self, formula: Formula) -> Formula:
-        # Find all free variables and wrap in forall
         free_vars = self.get_free_vars(formula)
         if not free_vars:
             return formula
-        # Sort for determinism
         vars_list = sorted(list(free_vars), key=lambda v: v.name)
         return Quantifier("forall", vars_list, formula)
 
@@ -64,13 +53,6 @@ class Translator:
             for v in formula.vars:
                 if v in vars:
                     vars.remove(v)
-                    # Note: Variable equality depends on name?
-                    # Dataclass equality is robust if same name.
-                    # But we should ensure we match names.
-                    # My get_vars_in_term returns Variables.
-                    # list remove uses equality.
-                    # set remove uses hash.
-                    # Dataclass hash is based on fields.
             return vars
         return set()
 
@@ -93,7 +75,7 @@ class Translator:
             if as_axiom:
                 return Variable(name)
             else:
-                return Constant(name.lower()) # Constants are lowercase
+                return Constant(name.lower())
 
         def get_term(idx):
             if idx < len(atoms):
@@ -101,8 +83,19 @@ class Translator:
                  if m: return make_var(m.group(1))
             return None
 
-        # Complex "Let" first
+        # Complex patterns first!
+
+        # CANTOR / General Complex
+
+        if "value" in atoms_str and "element" in atoms_str and "set" in atoms_str:
+             X = Variable("X")
+             f = Constant("f_witness")
+             M = make_var("M")
+             return Quantifier("forall", [X],
+                Implies(Predicate("in", [X, M]), Predicate("set", [Function("apply", [f, X])])))
+
         if "Let" in atoms_str and "function" in atoms_str and "set" in atoms_str and "and" in atoms_str:
+            if as_axiom: return None
             formulas = []
             for i, word in enumerate(atoms_str):
                 if word == "function" and i > 2:
@@ -114,12 +107,13 @@ class Translator:
             if len(formulas) == 1: return formulas[0]
             if len(formulas) > 1: return And(formulas[0], formulas[1])
 
-        # Simple "Let X be a set"
         if "Let" in atoms_str and "set" in atoms_str:
+            if as_axiom: return None
             v = get_term(atoms_str.index("Let") + 1)
             if v: return Predicate("set", [v])
 
         if "Let" in atoms_str and "classes" in atoms_str:
+             if as_axiom: return None
              vars = []
              for a in atoms:
                  m = re.search(r'\$([a-zA-Z0-9]+)\$', str(a))
@@ -129,16 +123,14 @@ class Translator:
                   if len(forms) == 1: return forms[0]
                   return And(forms[0], forms[1])
 
-        # "X is a set"
+        # "X is a set" (Low priority)
         if "is" in atoms_str and "a" in atoms_str and "set" in atoms_str:
              idx = atoms_str.index("is")
              if idx > 0:
                  v = get_term(idx-1)
                  if v: return Predicate("set", [v])
 
-        # Definitions (Always quantify free vars if not explicitly quantified? Handled by closure)
-        # But wait, explicit definitions use Variables "S", "T".
-        # If I use `make_var`, and `as_axiom=True`, it returns Variable. Correct.
+        # Definitions
 
         if "subclass" in atoms_str and "every" in atoms_str and "belongs" in atoms_str:
             S = Variable("S")
@@ -202,12 +194,8 @@ class Translator:
              return Quantifier("forall", [X], Implies(Predicate("set", [X]), Predicate("set", [Function("powerset", [X])])))
 
         if "No" in atoms_str and "surjects" in atoms_str:
-             M = make_var("M") # Could be constant or variable depending on context
-             # If theorem: "No function of M...". M is fixed constant.
-             # If axiom: "No function of any set..."?
-             # Here, M refers to the M declared in "Let M be a set".
-             # So use make_var.
-             F = Variable("F") # Bound
+             M = make_var("M")
+             F = Variable("F")
              return Not(Quantifier("exists", [F],
                         And(Predicate("function_of", [M, F]),
                             Predicate("surjects_onto", [F, Function("powerset", [M])]))))
@@ -219,13 +207,6 @@ class Translator:
              f = Constant("f_witness")
              M = make_var("M")
              return Predicate("surjective_function_from_to", [f, M, Function("powerset", [M])])
-
-        if "value" in atoms_str and "element" in atoms_str and "set" in atoms_str:
-             X = Variable("X")
-             f = Constant("f_witness")
-             M = make_var("M")
-             return Quantifier("forall", [X],
-                Implies(Predicate("in", [X, M]), Predicate("set", [Function("apply", [f, X])])))
 
         if "Define" in atoms_str:
              N = Constant("N")
