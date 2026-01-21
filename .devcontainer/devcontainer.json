@@ -1,0 +1,17 @@
+{
+	"name": "Naproche",
+	"build": {
+		"dockerfile": "../Dockerfile",
+		"context": ".."
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"charliermarsh.ruff",
+				"james-yu.latex-workshop"
+			]
+		}
+	}
+}
