@@ -25,6 +25,7 @@ from naproche.logic.fol import (
     Variable,
 )
 import re
+from naproche.parser.math_parser import parse_math, MathTransformer
 
 
 class Translator:
@@ -133,6 +134,12 @@ class Translator:
             return vars
         return set()
 
+    def parse_math_safe(self, text):
+        try:
+            return parse_math(text)
+        except Exception:
+            return None
+
     def translate_sentence(
         self, sentence: Sentence, as_axiom=False
     ) -> Optional[Formula]:
@@ -146,413 +153,275 @@ class Translator:
             else:
                 return Constant(name.lower())
 
-        def get_term(idx):
-            if idx < len(atoms):
-                m = re.search(r"\$([a-zA-Z0-9]+)\$", str(atoms[idx]))
-                if m:
-                    return make_var(m.group(1))
+        def get_term_from_math(math_atom):
+            res = self.parse_math_safe(math_atom)
+            if isinstance(res, (Term, Variable, Constant, Function)):
+                return res
             return None
 
-        # --- PRELIMINARIES PATTERNS ---
+        # --- MATH FORMULA DETECTION ---
+        if len(atoms_str) == 1 and ("$" in atoms_str[0] or "\\[" in atoms_str[0]):
+             # Just math expression
+             return self.parse_math_safe(atoms_str[0])
 
-        # Simple equality: 1 = 1
-        if "=" in atoms_str:
-            idx = atoms_str.index("=")
-            if (
-                idx > 0
-                and idx < len(atoms_str) - 1
-                and atoms_str[idx - 1] == "1"
-                and atoms_str[idx + 1] == "1"
-            ):
-                return Equal(Constant("1"), Constant("1"))
-
-        # "The empty set is the set that has no elements."
-        if (
-            "empty" in atoms_str
-            and "set" in atoms_str
-            and "no" in atoms_str
-            and "elements" in atoms_str
-        ):
-            E = Constant("empty_set")
-            X = Variable("X")
-            return And(
-                Predicate("set", [E]),
-                Quantifier("forall", [X], Not(Predicate("in", [X, E]))),
-            )
-
-        # "A subclass of S is a class T such that every x in T belongs to S."
-        if (
-            "subclass" in atoms_str
-            and "class" in atoms_str
-            and "every" in atoms_str
-            and "belongs" in atoms_str
-        ):
-            S = Variable("S")
-            T = Variable("T")
-            X = Variable("X")
-            return Quantifier(
-                "forall",
-                [S, T],
-                Iff(
-                    Predicate("subclass", [T, S]),
-                    And(
-                        Predicate("class", [T]),
-                        Quantifier(
-                            "forall",
-                            [X],
-                            Implies(Predicate("in", [X, T]), Predicate("in", [X, S])),
-                        ),
-                    ),
-                ),
-            )
-
-        # "Let T be a subclass of X" (Separation Axiom assumption)
-        if "Let" in atoms_str and "subclass" in atoms_str:
-            # Need to extract vars.
-            # Pattern: Let $T$ be a subclass of $X$
-            T = None
-            X = None
-            for i, a in enumerate(atoms):
-                if str(a).startswith("$") and T is None:
-                    T = get_term(i)
-                elif str(a).startswith("$") and T is not None:
-                    X = get_term(i)
-            if T and X:
-                return Predicate("subclass", [T, X])
-
-        # "A subset of S is a set X such that X \subseteq S"
-        if (
-            "subset" in atoms_str
-            and "set" in atoms_str
-            and ("subseteq" in str(text) or "subset" in str(text))
-        ):
-            # Distinguish from "A subset of S..." definition vs "Let X be a subset" assumption.
-            # Definition usually has "is a set X".
-            if "is" in atoms_str:
-                S = Variable("S")
-                X = Variable("X")
-                return Quantifier(
-                    "forall",
-                    [S, X],
-                    Iff(
-                        Predicate("subset", [X, S]),
-                        And(Predicate("set", [X]), Predicate("subclass", [X, S])),
-                    ),
-                )
-
-        # "The intersection of S and T is..."
-        if "intersection" in atoms_str and "is" in atoms_str:
-            S = Variable("S")
-            T = Variable("T")
-            X = Variable("X")
-            # intersection(S, T) = {x in S | x in T}
-            # z in inter(S, T) <=> z in S & z in T
-            Z = Variable("Z")
-            return Quantifier(
-                "forall",
-                [S, T, Z],
-                Iff(
-                    Predicate("in", [Z, Function("intersection", [S, T])]),
-                    And(Predicate("in", [Z, S]), Predicate("in", [Z, T])),
-                ),
-            )
-
-        # "The union of S and T is..."
-        if "union" in atoms_str and "is" in atoms_str:
-            S = Variable("S")
-            T = Variable("T")
-            Z = Variable("Z")
-            return Quantifier(
-                "forall",
-                [S, T, Z],
-                Iff(
-                    Predicate("in", [Z, Function("union", [S, T])]),
-                    Or(Predicate("in", [Z, S]), Predicate("in", [Z, T])),
-                ),
-            )
-
-        # "S is disjoint from T iff there is no element of S that is an element of T"
-        if "disjoint" in atoms_str and "iff" in atoms_str:
-            S = Variable("S")
-            T = Variable("T")
-            X = Variable("X")
-            return Quantifier(
-                "forall",
-                [S, T],
-                Iff(
-                    Predicate("disjoint", [S, T]),
-                    Not(
-                        Quantifier(
-                            "exists",
-                            [X],
-                            And(Predicate("in", [X, S]), Predicate("in", [X, T])),
-                        )
-                    ),
-                ),
-            )
-
-        # Function Axioms
-
-        # "Assume that dom(f) is a set and f(x) is an object..." -> f is a function.
-        if (
-            "Assume" in atoms_str
-            and "dom" in atoms_str
-            and "set" in atoms_str
-            and "function" in atoms_str
-        ):
-            # This is complex. Simplified:
-            # function(f) is defined by property?
-            # Actually this is an Axiom block Conclusion: "Then f is a function."
-            # The assumption is "Assume that dom(f) is a set..."
-            pass  # Too complex to pattern match exactly without better parser.
-
-        # "f maps elements of S to elements of T iff dom(f) = S and f[S] \subseteq T"
-        if "maps" in atoms_str and "elements" in atoms_str:
-            f = Variable("f")
-            S = Variable("S")
-            T = Variable("T")
-            return Quantifier(
-                "forall",
-                [f, S, T],
-                Iff(
-                    Predicate("maps_to", [f, S, T]),
-                    And(
-                        Equal(Function("dom", [f]), S),
-                        Predicate("subclass", [Function("image_of", [f, S]), T]),
-                    ),
-                ),
-            )
-
-        # "Let f stand for a map" (Declaration)
-        if "Let" in atoms_str and "stand" in atoms_str and "map" in atoms_str:
-            if as_axiom:
-                return None  # or Predicate("map", [Variable("f")])?
-            pass
-
-        # --- CANTOR PATTERNS ---
-
-        # "The value of f at any element of M is a set"
-        if "value" in atoms_str and "element" in atoms_str and "set" in atoms_str:
-            X = Variable("X")
-            f = Constant("f_witness")
-            M = make_var("M")
-            return Quantifier(
-                "forall",
-                [X],
-                Implies(
-                    Predicate("in", [X, M]),
-                    Predicate("set", [Function("apply", [f, X])]),
-                ),
-            )
-
-        if (
-            "Let" in atoms_str
-            and "function" in atoms_str
-            and "set" in atoms_str
-            and "and" in atoms_str
-        ):
-            if as_axiom:
-                return None
-            formulas = []
-            for i, word in enumerate(atoms_str):
-                if word == "function" and i > 2:
-                    v = get_term(i - 3)
-                    if v:
-                        formulas.append(Predicate("function", [v]))
-                if word == "set" and i > 2:
-                    v = get_term(i - 3)
-                    if v:
-                        formulas.append(Predicate("set", [v]))
-            if len(formulas) == 1:
-                return formulas[0]
-            if len(formulas) > 1:
-                return And(formulas[0], formulas[1])
-
-        if "Let" in atoms_str and "set" in atoms_str:
-            if as_axiom:
-                # Check if it's "Let T be a subclass of X" -> handled above.
-                # "Let X be a set"
-                v = get_term(atoms_str.index("Let") + 1)
-                if v:
-                    return Predicate("set", [v])
-                return None
-            else:
-                v = get_term(atoms_str.index("Let") + 1)
-                if v:
-                    return Predicate("set", [v])
-
-        if "Let" in atoms_str and "classes" in atoms_str:
-            if as_axiom:
-                return None
-            vars = []
-            for a in atoms:
-                m = re.search(r"\$([a-zA-Z0-9]+)\$", str(a))
-                if m:
-                    vars.append(make_var(m.group(1)))
-            if vars:
-                forms = [Predicate("class", [v]) for v in vars]
-                if len(forms) == 1:
-                    return forms[0]
-                return And(forms[0], forms[1])
-
-        if "is" in atoms_str and "a" in atoms_str and "set" in atoms_str:
-            idx = atoms_str.index("is")
-            if idx > 0:
-                v = get_term(idx - 1)
-                if v:
-                    return Predicate("set", [v])
-
-        # Definitions
-
-        if "function" in atoms_str and "such" in atoms_str and "that" in atoms_str:
-            X = None
-            for a in atoms_str:
-                if a.startswith("$") and "X" in a:
-                    X = Variable("X")
-            if X:
-                F = Variable("F")
-                return Quantifier(
-                    "forall",
-                    [F],
-                    Iff(
-                        Predicate("function_of", [X, F]),
-                        And(Predicate("function", [F]), Equal(Function("dom", [F]), X)),
-                    ),
-                )
-
-        if "surjects" in atoms_str and "iff" in atoms_str:
-            F = Variable("F")
-            Y = Variable("Y")
-            Z = Variable("Z")
-            X = Variable("X")
-            lhs = Predicate("surjects_onto", [F, Y])
-            rhs = Quantifier(
-                "forall",
-                [Z],
-                Iff(
-                    Predicate("in", [Z, Y]),
-                    Quantifier(
-                        "exists",
-                        [X],
-                        And(
-                            Predicate("in", [X, Function("dom", [F])]),
-                            Equal(Function("apply", [F, X]), Z),
-                        ),
-                    ),
-                ),
-            )
-            return Quantifier("forall", [F, Y], Iff(lhs, rhs))
-
-        if "surjective" in atoms_str and "stand" in atoms_str:
-            F = Variable("F")
-            X = Variable("X")
-            Y = Variable("Y")
-            return Quantifier(
-                "forall",
-                [F, X, Y],
-                Iff(
-                    Predicate("surjective_function_from_to", [F, X, Y]),
-                    And(
-                        Predicate("function_of", [X, F]),
-                        Predicate("surjects_onto", [F, Y]),
-                    ),
-                ),
-            )
-
-        if "powerset" in atoms_str and "collection" in atoms_str:
-            X = Variable("X")
-            S = Variable("S")
-            Z = Variable("Z")
-            return Quantifier(
-                "forall",
-                [X, S],
-                Iff(
-                    Equal(Function("powerset", [X]), S),
-                    Quantifier(
-                        "forall",
-                        [Z],
-                        Iff(Predicate("in", [Z, S]), Predicate("subset", [Z, X])),
-                    ),
-                ),
-            )
-
-        if "powerset" in atoms_str and "any" in atoms_str and "set" in atoms_str:
-            X = Variable("X")
-            return Quantifier(
-                "forall",
-                [X],
-                Implies(
-                    Predicate("set", [X]), Predicate("set", [Function("powerset", [X])])
-                ),
-            )
-
-        if "No" in atoms_str and "surjects" in atoms_str:
-            M = make_var("M")
-            F = Variable("F")
-            return Not(
-                Quantifier(
-                    "exists",
-                    [F],
-                    And(
-                        Predicate("function_of", [M, F]),
-                        Predicate("surjects_onto", [F, Function("powerset", [M])]),
-                    ),
-                )
-            )
-
+        # "Assume the contrary"
         if "Assume" in atoms_str and "contrary" in atoms_str:
             return Predicate("contrary", [])
 
-        if "Take" in atoms_str and "surjective" in atoms_str:
-            f = Constant("f_witness")
-            M = make_var("M")
-            return Predicate(
-                "surjective_function_from_to", [f, M, Function("powerset", [M])]
-            )
+        # "Then <Math>"
+        if len(atoms_str) >= 2 and atoms_str[0] == "Then" and ("$" in atoms_str[1] or "\\[" in atoms_str[1]):
+             # Then <Formula>
+             f = self.parse_math_safe(atoms_str[1])
+             if f: return f
 
+        # "Then f is an element of ProdSet..."
+        if "Then" in atoms_str and "element" in atoms_str:
+            var = None
+            domain = None
+            for a in atoms_str:
+                if "$" in a:
+                    t = get_term_from_math(a)
+                    if t:
+                        if var is None: var = t
+                        else: domain = t
+            if var and domain:
+                return Predicate("in", [var, domain])
+
+        # "Take a function G such that ..."
+        # "Take an element j of D ..."
+        if "Take" in atoms_str:
+            if "and" not in atoms_str: # Simple take
+                var = None
+                domain = None
+                for i, word in enumerate(atoms_str):
+                    if word == "element":
+                        # next might be variable
+                        if i+1 < len(atoms_str) and "$" in atoms_str[i+1]:
+                            var = get_term_from_math(atoms_str[i+1])
+                    if word == "of" and var:
+                         if i+1 < len(atoms_str) and "$" in atoms_str[i+1]:
+                            domain = get_term_from_math(atoms_str[i+1])
+                            break
+
+                if var and domain:
+                    return Predicate("in", [var, domain])
+
+                if "function" in atoms_str:
+                     # Take a function G such that ...
+                     for a in atoms_str:
+                         if "$" in a:
+                             t = get_term_from_math(a)
+                             if t:
+                                 return Predicate("function", [t])
+
+        # "Define ..."
         if "Define" in atoms_str:
-            N = Constant("N")
-            M = make_var("M")
-            f = Constant("f_witness")
-            Z = Variable("Z")
-            # N = {x in M | x not in f(x)}
-            return Quantifier(
-                "forall",
-                [Z],
-                Iff(
-                    Predicate("in", [Z, N]),
-                    And(
-                        Predicate("in", [Z, M]),
-                        Not(Predicate("in", [Z, Function("apply", [f, Z])])),
-                    ),
-                ),
-            )
+            for a in atoms_str:
+                if "$" in a:
+                    f = self.parse_math_safe(a)
+                    if isinstance(f, (Equal, Predicate)):
+                        return f
+            return Predicate("definition", [])
 
-        if "$N$" in atoms_str and "subset" in atoms_str:
-            return Predicate("subset", [Constant("N"), make_var("M")])
+        # "For every element i of D, lambda_i is a set"
+        if "set" in atoms_str and "For" in atoms_str:
+             # Pattern: For every element $i$ of $D$ $\lambda_{i}$ is a set .
+             var = None
+             domain = None
+             target = None
 
-        if "Consider" in atoms_str:
-            z = Constant("z")
-            M = make_var("M")
-            f = Constant("f_witness")
-            N = Constant("N")
-            # Consider z such that f(z) = N.
-            # Implies z in dom(f). dom(f) = M. So z in M.
-            return And(Predicate("in", [z, M]), Equal(Function("apply", [f, z]), N))
+             # Extract var/domain
+             if "element" in atoms_str:
+                 try:
+                     idx = atoms_str.index("element")
+                     if idx + 3 < len(atoms_str) and atoms_str[idx+2] == "of":
+                         var = get_term_from_math(atoms_str[idx+1])
+                         domain = get_term_from_math(atoms_str[idx+3])
+                 except ValueError:
+                     pass
 
-        if "Then" in atoms_str and "iff" in atoms_str:
-            z = Constant("z")
-            N = Constant("N")
-            f = Constant("f_witness")
-            # z in N iff z notin f(z) = N
-            # z in N <=> ~ (z in f(z))
-            # Also f(z) = N
-            return Iff(
-                Predicate("in", [z, N]),
-                Not(Predicate("in", [z, Function("apply", [f, z])])),
-            )
+             # Extract target
+             for a in atoms_str:
+                 if "$" in a:
+                     t = get_term_from_math(a)
+                     if t and t != var and t != domain:
+                         target = t
+
+             if var and domain and target:
+                 v = Variable(var.name) if isinstance(var, Constant) else var
+                 if isinstance(v, Function): v = Variable(v.name)
+                 return Quantifier("forall", [v], Implies(Predicate("in", [v, domain]), Predicate("set", [target])))
+
+        # "For every element i of D and every element d of Delta(i) we have d in lambda_i"
+        if "For" in atoms_str and "we" in atoms_str and "have" in atoms_str:
+             # Double quantification
+             vars_domains = []
+
+             # Naive scan for "element X of Y"
+             i = 0
+             while i < len(atoms_str):
+                 if atoms_str[i] == "element":
+                     if i + 3 < len(atoms_str) and atoms_str[i+2] == "of":
+                         v = get_term_from_math(atoms_str[i+1])
+                         d = get_term_from_math(atoms_str[i+3])
+                         if v and d:
+                             vars_domains.append((v, d))
+                 i += 1
+
+             body = None
+             # Check end of sentence for formula
+             # "we have <formula> ."
+             if "have" in atoms_str:
+                 try:
+                     h_idx = atoms_str.index("have")
+                     if h_idx + 1 < len(atoms_str):
+                         body = self.parse_math_safe(atoms_str[h_idx+1])
+                 except ValueError:
+                     pass
+
+             if vars_domains and body:
+                 # Construct nested quantifiers
+                 result = body
+                 for v, d in reversed(vars_domains):
+                     v_obj = Variable(v.name) if isinstance(v, Constant) else v
+                     if isinstance(v_obj, Function): v_obj = Variable(v_obj.name)
+                     result = Quantifier("forall", [v_obj], Implies(Predicate("in", [v_obj, d]), result))
+                 return result
+
+        # "For every ..." generic
+        if "For" in atoms_str and "every" in atoms_str:
+            var = None
+            domain = None
+            body = None
+
+            # scan for "element $i$ of $D$"
+            if "element" in atoms_str:
+                try:
+                    idx = atoms_str.index("element")
+                    # Look ahead for var and domain
+                    # "element $i$ of $D$" -> idx, idx+1($i$), idx+2(of), idx+3($D$)
+                    if idx + 3 < len(atoms_str) and atoms_str[idx+2] == "of":
+                        var = get_term_from_math(atoms_str[idx+1])
+                        domain = get_term_from_math(atoms_str[idx+3])
+                except ValueError:
+                    pass
+
+            # scan for body formula
+            for i in range(len(atoms_str)-1, -1, -1):
+                if "$" in atoms_str[i] or "\\[" in atoms_str[i]:
+                    f = self.parse_math_safe(atoms_str[i])
+                    if isinstance(f, Formula):
+                        body = f
+                        break
+
+            if var and domain and body:
+                v = Variable(var.name) if isinstance(var, Constant) else var
+                if isinstance(v, Function): v = Variable(v.name)
+                return Quantifier("forall", [v], Implies(Predicate("in", [v, domain]), body))
+
+        # "Let i be an element of D"
+        if "Let" in atoms_str and "element" in atoms_str:
+             var = None
+             domain = None
+             if "be" in atoms_str:
+                 try:
+                     idx = atoms_str.index("be")
+                     # $i$ be ...
+                     if idx > 0 and "$" in atoms_str[idx-1]:
+                         var = get_term_from_math(atoms_str[idx-1])
+
+                     # ... element of $D$
+                     if idx + 2 < len(atoms_str) and atoms_str[idx+1] == "an" and atoms_str[idx+2] == "element":
+                         if idx + 4 < len(atoms_str) and atoms_str[idx+3] == "of":
+                             domain = get_term_from_math(atoms_str[idx+4])
+                 except ValueError:
+                     pass
+
+             if var and domain:
+                 return Predicate("in", [var, domain])
+
+        # "Indeed ..."
+        if "Indeed" in atoms_str:
+             for a in atoms_str:
+                 if "$" in a:
+                     t = get_term_from_math(a)
+                     if t: return Predicate("set", [t])
+
+        # "Then F[...] = ..."
+        if "Then" in atoms_str:
+            for a in atoms_str:
+                if "$" in a:
+                    f = self.parse_math_safe(a)
+                    if isinstance(f, Formula): return f
+
+        # "G(m,j)(j) is an element of Delta(j)"
+        # "f(j) is not an element of Delta(j)"
+        if "element" in atoms_str:
+            negated = "not" in atoms_str
+            var = None
+            domain = None
+            for a in atoms_str:
+                if "$" in a:
+                    t = get_term_from_math(a)
+                    if t:
+                        if var is None: var = t
+                        else: domain = t
+
+            if var and domain:
+                pred = Predicate("in", [var, domain])
+                if negated: return Not(pred)
+                return pred
+
+        # "Take an element j of D and an element m of kappa_j such that ..."
+        if "Take" in atoms_str and "and" in atoms_str:
+             vars_domains = []
+             i = 0
+             while i < len(atoms_str):
+                 if atoms_str[i] == "element":
+                     if i + 3 < len(atoms_str) and atoms_str[i+2] == "of":
+                         v = get_term_from_math(atoms_str[i+1])
+                         d = get_term_from_math(atoms_str[i+3])
+                         if v and d:
+                             vars_domains.append((v, d))
+                 i += 1
+
+             cond = None
+             if "that" in atoms_str:
+                 try:
+                     idx = atoms_str.index("that")
+                     if idx + 1 < len(atoms_str):
+                         cond = self.parse_math_safe(atoms_str[idx+1])
+                 except ValueError:
+                     pass
+
+             formulas = []
+             for v, d in vars_domains:
+                 formulas.append(Predicate("in", [v, d]))
+             if cond:
+                 formulas.append(cond)
+
+             if len(formulas) > 1:
+                 # ideally combine all with And
+                 res = formulas[0]
+                 for f in formulas[1:]:
+                     res = And(res, f)
+                 return res
+             elif len(formulas) == 1:
+                 return formulas[0]
+
+        # "End"
+        if "End" in atoms_str:
+            return None # End of proof block, structural
 
         if "Contradiction" in atoms_str:
             return Predicate("false", [])
+
+        # Fallback to old regex based for simple cases not covered
+        # ... (keep old logic if needed, or rely on math parser)
+
+        # Checking old equality: 1 = 1
+        if "=" in atoms_str:
+             # If math parser didn't catch it (atoms were split)
+             pass
 
         return None
