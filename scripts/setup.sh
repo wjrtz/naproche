@@ -91,39 +91,4 @@ if [ ! -f "provers/eprover" ]; then
     rm -rf "$DIR_NAME" eprover.tar.gz
 fi
 
-# 4. Environment Variables
-echo "Configuring Environment Variables..."
-REPO_ROOT=$(pwd)
-ENV_FILE="$HOME/.local/bin/env"
-DOT_ENV_FILE=".env"
-
-# Ensure ~/.local/bin exists
-mkdir -p "$(dirname "$ENV_FILE")"
-touch "$ENV_FILE"
-
-# Function to update or append variable
-update_env_var() {
-    local key=$1
-    local value=$2
-    local file=$3
-
-    if grep -q "export $key=" "$file"; then
-        # Use sed to replace the line. We use | as delimiter
-        sed -i "s|export $key=.*|export $key=\"$value\"|" "$file"
-    else
-        echo "export $key=\"$value\"" >> "$file"
-    fi
-}
-
-# Update user environment file
-update_env_var "NAPROCHE_EPROVER" "$REPO_ROOT/provers/eprover" "$ENV_FILE"
-update_env_var "NAPROCHE_VAMPIRE" "$REPO_ROOT/provers/vampire" "$ENV_FILE"
-
-# Update/Create local .env file
-touch "$DOT_ENV_FILE"
-update_env_var "NAPROCHE_EPROVER" "$REPO_ROOT/provers/eprover" "$DOT_ENV_FILE"
-update_env_var "NAPROCHE_VAMPIRE" "$REPO_ROOT/provers/vampire" "$DOT_ENV_FILE"
-
 echo "Setup Complete"
-echo "Environment variables added to $ENV_FILE and $DOT_ENV_FILE"
-echo "Please run: source $ENV_FILE"
