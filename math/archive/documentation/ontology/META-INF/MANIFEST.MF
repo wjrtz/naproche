@@ -1,5 +1,0 @@
-id: documentation/ontology
-ns: https://naproche.github.io/math/archive/documentation/ontology
-narration-base: https://naproche.github.io/math/archive/documentation/ontology
-url-base: http://localhost
-format:stex
