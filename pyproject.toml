@@ -1,0 +1,31 @@
+[project]
+name = "naproche"
+version = "0.1.0"
+description = "Naproche - Natural Proof Checking"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "lark",
+    "pygls",
+    "lsprotocol",
+]
+
+[project.scripts]
+naproche = "naproche.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
