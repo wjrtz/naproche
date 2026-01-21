@@ -24,10 +24,10 @@ atom: math | word | other_symbol | punctuation
 
 math: INLINE_MATH | DISPLAY_MATH
 INLINE_MATH: /\$[^$]+\$/
-DISPLAY_MATH: /\\\[(.|\n)+?\\\]/
+DISPLAY_MATH: /\\\[(.|\n)+?\\\]/ | /\$\$(.|\n)+?\$\$/
 
 word: /[a-zA-Z0-9_]+/
-other_symbol: /[^\s\w$.\[\]\\{}]+/ | BACKSLASH | BRACE_OPEN | BRACE_CLOSE
+other_symbol: /[^\s\w$.\[\]\\{}]+/ | BACKSLASH | BRACE_OPEN | BRACE_CLOSE | BRACKET_OPEN | BRACKET_CLOSE
 punctuation: "," | ":" | ";"
 
 DOT: "."

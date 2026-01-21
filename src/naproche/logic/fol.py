@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import List
-
+import re
 
 @dataclass(frozen=True)
 class Term:
@@ -12,15 +12,43 @@ class Variable(Term):
     name: str
 
     def __str__(self):
+        # Ensure variables are uppercase for TPTP
         return self.name.upper()
 
+
+def quote_name(name: str) -> str:
+    # Escape backslash and single quote
+    escaped = name.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
+
+def needs_quote(name: str) -> bool:
+    # TPTP identifier: [a-z][a-zA-Z0-9_]*
+    if not name: return False
+    if not name[0].islower(): return True
+    if not re.fullmatch(r"[a-z][a-zA-Z0-9_]*", name): return True
+    return False
 
 @dataclass(frozen=True)
 class Constant(Term):
     name: str
 
     def __str__(self):
-        return self.name.lower()
+        # Ensure constants are lowercase or quoted
+        real_name = self.name
+        if real_name.startswith('\\'):
+             real_name = real_name[1:]
+             if real_name and real_name[0].isupper():
+                 return real_name.lower()
+             return real_name.lower()
+
+        if needs_quote(real_name):
+             if real_name[0].isupper():
+                 lower = real_name.lower()
+                 if not needs_quote(lower):
+                     return lower
+             return quote_name(real_name)
+
+        return real_name
 
 
 @dataclass(frozen=True)
@@ -29,8 +57,15 @@ class Function(Term):
     args: List[Term]
 
     def __str__(self):
+        name_str = self.name
+        if needs_quote(self.name):
+            name_str = quote_name(self.name)
+
+        if not self.args:
+            return name_str
+
         args_str = ",".join(str(a) for a in self.args)
-        return f"{self.name}({args_str})"
+        return f"{name_str}({args_str})"
 
 
 @dataclass(frozen=True)
@@ -44,8 +79,15 @@ class Predicate(Formula):
     args: List[Term]
 
     def __str__(self):
+        name_str = self.name
+        if needs_quote(self.name):
+             name_str = quote_name(self.name)
+
+        if not self.args:
+            return name_str
+
         args_str = ",".join(str(a) for a in self.args)
-        return f"{self.name}({args_str})"
+        return f"{name_str}({args_str})"
 
 
 @dataclass(frozen=True)

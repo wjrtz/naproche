@@ -20,12 +20,12 @@ so are $\fplus{f}{g}$, $\fmult{f}{g}$, and $(f \circ g)$.
 
 The typical definition of continuity is the famous $\varepsilon$-$\delta$ criterion.
 $f: \mathbb{R} \rightarrow \mathbb{R}$ is continuous in $a$ iff
-$$\forall \varepsilon > 0 \exists \delta > 0 \forall x \in \mathbb{R}:\ \abs{x - a} < \delta \implies \abs{f(x) - f(a)} < \varepsilon.$$
+$$\forall \varepsilon > 0 \exists \delta > 0 \forall x \in \mathbb{R}:\ \abs{x - a} < \delta \implies \abs{f(x) - f(a)} < \varepsilon$$ .
 This definition is overwhelms, however, the type verification system. Instead we will use Skolem-functions 
 to break this definitions apart.
 
 Thus we introduce the term "domain restrictor" referring to the $\delta = \delta(\varepsilon)$ such that 
-$$\forall x \in \mathbb{R} \setminus \sset{a}{\mathbb{R}}:\ \abs{x - a} < \delta \implies \abs{f(x) - f(a)} < \varepsilon.$$
+$$\forall x \in \mathbb{R} \setminus \sset{a}{\mathbb{R}}:\ \abs{x - a} < \delta \implies \abs{f(x) - f(a)} < \varepsilon$$ .
 We exclude $a$ from the set of real numbers, for which it should hold, because we want to reuse the concept of
 domain restrictor in the following chapter for our definition of differentiation. 
 There we will have that $$\abs{\frac{f(x) - f(a)}{x - a} - f'(a)} < \varepsilon,$$
@@ -130,7 +130,7 @@ Let $a,b$ denote real numbers.
 To prove that a function $f(x) = a \cdot x + b$ is continuous, we let $\varepsilon$ be a positive real number and 
 take $\delta = \frac{\varepsilon}{\abs{a}}$. Then for all $x$ with a distance smaller $\delta$ to $a$ we know
 $$\abs{f(x) - f(a)} = \abs{(a \cdot x + b) - (a \cdot a + b)} = \abs{a} \cdot \abs{x - a} < 
-\abs{a} \cdot \frac{\varepsilon}{\abs{a}} = \varepsilon.$$
+\abs{a} \cdot \frac{\varepsilon}{\abs{a}} = \varepsilon$$ .
 
 \begin{forthel}
 

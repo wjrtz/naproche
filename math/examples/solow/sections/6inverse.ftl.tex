@@ -43,7 +43,7 @@ Let $E$ denote a subset of $\mathbb{R}$.
 
 We want to show that if $E$ is an open neighbourhood of $a$ and $f$ continuous and strictly monotone on $E$, then $f[E]$ is an open neighbourhood of $f(a)$. Let us assume $f$ is strictly increasing as the case for $f$ strictly decreasing works analogously. We need to show that $f[E]$ is open. Therefore let $\xi$ be an element of $f[E]$. Take $x \in E$ $f(x) = \xi$ and, because $E$ is open, there exists $\delta > 0$ such that $\B_{\delta}(x) \subseteq E$. One corollary of the intermediate value theorem that we proved in the monotonicity subsection of the section about extrema, that for continuous strictly increasing functions 
 $f[(x - \delta, x + \delta)] = (f(x - \delta),f(x + \delta)) \ni \xi$. Thus 
-$$\exists d >0:\ \B_{d}(\xi) \subseteq (f(x - \delta),f(x + \delta)) \subseteq f[E].$$
+$$\exists d >0:\ \B_{d}(\xi) \subseteq (f(x - \delta),f(x + \delta)) \subseteq f[E]$$ .
 
 \begin{forthel}
 
@@ -242,7 +242,7 @@ Formally it takes some time to convince the ATP to verify this, but this is how 
 \end{forthel}
 
 In the next lemma we want to show if $f$ is continuously differentiable and $f'(a) \neq 0$ then there also exists such an open neighborhood $E$ of $a$, where $f$ is strictly monotone. Let us just look at the case of $f'(a)$ being positive. Then we can Take a positive real number $\delta$ such that $\delta$ is a domain restrictor such that 
-$$\forall x \in \B_{\delta}(a):\ \abs{f'(x) - f'(a)} < f'(a).$$
+$$\forall x \in \B_{\delta}(a):\ \abs{f'(x) - f'(a)} < f'(a)$$ .
 Then for all those $x$ $f'(x) > 0$, because if not, then $\abs{f'(x) - f'(a)} = f'(a) - f'(x) \geq f'(a)$. Therefore $f$ is strictly increasing on the neighborhood $\B_{\delta}(a)$ of $a$.
 
 \begin{forthel}
@@ -320,7 +320,7 @@ $\psi$ is a difference quotient map for $ext$ in $f(a)$ if it satisfies
 (1) we can show by case distinction with $y \in f[E]$ and $y \notin f[E]$ and then some simple calculation. For (2) we need lemma mon 3 though, which says that $\inv{(f \upharpoonright E)}$ is locally continuous in $f(a)$. Furthermore $\varphi$ is continuous in $a$ and therefore by the continuity of composition and the continuity of a division map is $\psi$ also continuous in $f(a)$.
 
 Thus $ext$ is differentiable in $f(a)$ and since $\dom(\inv{(f \upharpoonright E)}) = f[E]$ is an open set, $\inv{(f \upharpoonright E)}$ is locally differentiable in $f(a)$ by open set differentiation extension and 
-$$\lderivin{\inv{(f \upharpoonright E)}}(f(a)) = \psi(f(a)) = 1/\varphi(\inv{(f \upharpoonright E)}(f(a))) = 1/f'(a).$$
+$$\lderivin{\inv{(f \upharpoonright E)}}(f(a)) = \psi(f(a)) = 1/\varphi(\inv{(f \upharpoonright E)}(f(a))) = 1/f'(a)$$ .
 
 \begin{forthel}
 

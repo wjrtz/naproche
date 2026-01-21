@@ -397,11 +397,11 @@ Then $(F \circ G) \circ H = F \circ (G \circ H)$.
 $\dom((F \circ G) \circ H) = \dom(H)$.
 $\dom(G \circ H) = \dom(H)$. Let $U = G \circ H$.
 $$\dom(F \circ (G \circ H)) =
-\dom(F \circ U) = \dom(U) = \dom(G \circ H) = \dom(H).$$
+\dom(F \circ U) = \dom(U) = \dom(G \circ H) = \dom(H)$$ .
 
 For every $x \in \dom(H)$ we have
 $$((F \circ G) \circ H)(x) = F(G(H(x))) =
-(F \circ (G \circ H))(x).$$
+(F \circ (G \circ H))(x)$$ .
 \end{proof}
 
 \begin{signature}
@@ -569,9 +569,9 @@ Let $S$ denote a class.
 There is a class that is not a set.
 \end{theorem}
 \begin{proof}
-Define $$R = \{x |\text{$x$ is a set and $x \notin x$}\}.$$
+Define $$R = \{x |\text{$x$ is a set and $x \notin x$}\}$$ .
 $R$ is not a set.
-Indeed if $R$ is a set then $$R \in R \iff R \notin R.$$
+Indeed if $R$ is a set then $$R \in R \iff R \notin R$$ .
 \end{proof}
 \end{forthel}
 
@@ -1042,7 +1042,7 @@ Then $y = z$.
 \end{proposition}
 \begin{proof}
 $ y = ((1/x) \cdot x) \cdot y = (1/x) \cdot (x \cdot y) =
-(1/x) \cdot (x \cdot z) = ((1/x) \cdot x) \cdot z = z.$
+(1/x) \cdot (x \cdot z) = ((1/x) \cdot x) \cdot z = z$ .
 \end{proof}
 
 \begin{proposition}
@@ -1116,7 +1116,7 @@ $(x - y) + (y - z) = ((x - y) + y) - z = x - z$.
 $-(x + y) = -x - y$.
 \end{lemma}
 \begin{proof}
-$(x + y) + (-x - y) = (x - x) + (y - y) = 0.$
+$(x + y) + (-x - y) = (x - x) + (y - y) = 0$ .
 \end{proof}
 
 \end{forthel}
@@ -1572,7 +1572,7 @@ $n \neq 0$ and $p = \frac{m}{n}$.
 [timelimit 5]
 \begin{lemma}
 $$\mathbb{Q} =
-\{\frac{m}{n} \mid m,n \in \mathbb{Z} \wedge n \neq 0\}.$$
+\{\frac{m}{n} \mid m,n \in \mathbb{Z} \wedge n \neq 0\}$$ .
 \end{lemma}
 \begin{proof}
 $\frac{m}{n} \in \mathbb{Q}$ where $m,n$ are integers and
@@ -1942,7 +1942,7 @@ $\frac{a}{b} \cdot d = a \cdot \frac{d}{b}$.
 \end{lemma}
 
 \begin{theorem} For all nonzero natural numbers $n$
-$$\sumarith{a}{d}{n} = n \cdot ( a + \frac{(n + 1) \cdot d}{2}).$$
+$$\sumarith{a}{d}{n} = n \cdot ( a + \frac{(n + 1) \cdot d}{2})$$ .
 \end{theorem}
 \begin{proof}[by induction on $n$]
 Let $n$ be a nonzero natural number.
@@ -1952,7 +1952,7 @@ Trivial.
 
 Take a natural number $m$ such that $m + 1 = n$. $m$ is inductively smaller than $n$.
 
-$$\sumarith{a}{d}{m} = m \cdot ( a + \frac{(m + 1) \cdot d}{2}).$$
+$$\sumarith{a}{d}{m} = m \cdot ( a + \frac{(m + 1) \cdot d}{2})$$ .
 
 Then
 $$\sumarith{a}{d}{n} =
@@ -2799,7 +2799,7 @@ $q = \frac{n}{m}$ and $m \cdot q = n$.
   Case $f[\Seq{1}{m'}] \subseteq \Seq{1}{n'}$.
 
   Take
-$$g = f \upharpoonright \Seq{1}{m'}.$$
+$$g = f \upharpoonright \Seq{1}{m'}$$ .
   Take $C = \Seq{1}{m'}$ and $D = \Seq{1}{n'}$.
   $f \upharpoonright \Seq{1}{m'}$ is an injective map.
   $\dom(f \upharpoonright \Seq{1}{m'}) = \Seq{1}{m'}$.
