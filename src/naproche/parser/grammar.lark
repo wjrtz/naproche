@@ -1,15 +1,12 @@
 start: element*
 
 element: directive
-       | prover_directive
        | environment
        | sentence
 
-directive: "[" "read" path "]"
-prover_directive: "[" "prover" prover_name "]"
+directive: "[" word (path | word)* "]"
 
 path: "\\path{" /[^}]+/ "}"
-prover_name: /[a-zA-Z0-9_]+/
 
 environment: BEGIN "{" env_name "}" optional_arg? element* END "{" env_name "}"
 

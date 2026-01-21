@@ -3,6 +3,7 @@ from naproche.logic.models import (
     Statement,
     Sentence,
     Directive,
+    ProverDirective,
     Theorem,
     Definition,
     Axiom,
@@ -28,7 +29,21 @@ def convert_item(item: Dict[str, Any]) -> Optional[Statement]:
     type_ = item.get("type")
 
     if type_ == "directive":
-        return Directive(path=item["path"])
+        name = item.get("name")
+        args = item.get("args", [])
+
+        if name == "read":
+            path = args[0] if args else ""
+            return Directive(path=path)
+        elif name == "prover":
+            prover_name = args[0] if args else "eprover"
+            return ProverDirective(prover_name=prover_name)
+        else:
+             # Unknown directive, maybe treat as generic or ignore?
+             # For now, let's just return nothing or generic Directive?
+             # Directive model currently only has 'path'.
+             # Let's assume Directive is mainly for 'read'.
+             pass
 
     elif type_ == "sentence":
         # Reconstruct text from atoms

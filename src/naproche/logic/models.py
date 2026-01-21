@@ -23,6 +23,9 @@ class Block(Statement):
 class Directive(Statement):
     path: str
 
+@dataclass
+class ProverDirective(Statement):
+    prover_name: str
 
 @dataclass
 class Theorem(Block):

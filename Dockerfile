@@ -1,12 +1,14 @@
 FROM python:3.11-slim
 
 # Install system dependencies
+# Added picosat for eprover dependency
+# Added unzip for vampire binary extraction
 RUN apt-get update && apt-get install -y \
     build-essential \
-    cmake \
     curl \
     git \
-    zlib1g-dev \
+    picosat \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -17,35 +19,30 @@ RUN pip install --no-cache-dir \
     pygls \
     lsprotocol
 
-# Compile Eprover
+# Install Eprover (using Ubuntu deb package for version 3.0.03)
+# Note: python:3.11-slim is Debian-based, but Ubuntu packages are often compatible.
+# This avoids compiling from source which is slow.
+# Using apt-get install on the .deb file to handle dependencies automatically.
 WORKDIR /tmp
-RUN curl -L https://github.com/eprover/eprover/archive/refs/tags/E-3.2.5.tar.gz -o eprover.tar.gz && \
-    tar -xzf eprover.tar.gz && \
-    cd eprover-E-3.2.5 && \
-    ./configure && \
-    make -j$(nproc) && \
-    make install && \
-    cd .. && \
-    rm -rf eprover.tar.gz eprover-E-3.2.5
+RUN curl -L -o eprover.deb http://archive.ubuntu.com/ubuntu/pool/universe/e/eprover/eprover_3.0.03+ds-1_amd64.deb && \
+    apt-get update && apt-get install -y ./eprover.deb && \
+    rm eprover.deb && \
+    rm -rf /var/lib/apt/lists/*
 
-# Compile Vampire
-# Vampire compilation can be tricky. Using a known tag.
-# Using v4.8casc2024 as it seems stable and recent enough.
-WORKDIR /tmp
-RUN curl -L https://github.com/vprover/vampire/archive/refs/tags/v4.9casc2024.tar.gz -o vampire.tar.gz && \
-    tar -xzf vampire.tar.gz && \
-    cd vampire-4.9casc2024 && \
-    cmake . -DBUILD_SHARED_LIBS=0 && \
-    make -j$(nproc) && \
-    cp bin/vampire_rel_static /usr/local/bin/vampire && \
-    cd .. && \
-    rm -rf vampire.tar.gz vampire-4.9casc2024
+# Install Vampire (precompiled binary)
+# Using v5.0.0 which provides precompiled static binaries for Linux.
+WORKDIR /usr/local/bin
+RUN curl -L https://github.com/vprover/vampire/releases/download/v5.0.0/vampire-Linux-X64.zip -o vampire.zip && \
+    unzip vampire.zip && \
+    chmod +x vampire && \
+    rm vampire.zip
 
 # Set up environment for the application
 WORKDIR /app
 
 # Set environment variables for provers
-ENV NAPROCHE_EPROVER=/usr/local/bin/eprover
+# eprover from deb installs to /usr/bin/eprover
+ENV NAPROCHE_EPROVER=/usr/bin/eprover
 ENV NAPROCHE_VAMPIRE=/usr/local/bin/vampire
 
 # Copy source code

@@ -9,22 +9,11 @@ class CNLTransformer(Transformer):
         return items[0]
 
     def directive(self, items):
-        if len(items) == 1:
-            return {"type": "directive", "path": items[0]}
-        path_val = "UNKNOWN"
-        for item in items:
-            if isinstance(item, str):
-                path_val = item
-        return {"type": "directive", "path": path_val}
-
-    def prover_directive(self, items):
-        # items[0] is prover_name, which might be a Tree or Token
         name = items[0]
-        # if using Transformer, name should already be processed by prover_name
-        return {"type": "prover_directive", "prover_name": name}
-
-    def prover_name(self, items):
-        return items[0].value
+        args = []
+        if len(items) > 1:
+            args = items[1:]
+        return {"type": "directive", "name": name, "args": args}
 
     def path(self, items):
         if len(items) >= 1:
