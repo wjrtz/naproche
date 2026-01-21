@@ -48,3 +48,11 @@ dist-newstyle/
 *.ilg
 *.ind
 *.rlog
+*.dvi
+*.gls
+*.ilg
+*.ind
+
+# Python
+__pycache__/
+.naproche_cache.db

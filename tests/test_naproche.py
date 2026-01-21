@@ -44,7 +44,8 @@ class TestIntegration(unittest.TestCase):
 
         all_stmts = []
         for block in blocks:
-            ast = parse_cnl(block)
+            # block is ForthelBlock object
+            ast = parse_cnl(block.content)
             stmts = convert_ast(ast)
             all_stmts.extend(stmts)
 
@@ -60,7 +61,10 @@ class TestIntegration(unittest.TestCase):
         # Result is from run_prover.
         # run_prover returns False if crash.
         # So cache should be populated with False.
-        self.assertTrue(len(engine.cache.cache) > 0)
+        cursor = engine.cache.conn.cursor()
+        cursor.execute("SELECT count(*) FROM cache")
+        total = cursor.fetchone()[0]
+        self.assertTrue(total > 0)
 
 if __name__ == '__main__':
     unittest.main()

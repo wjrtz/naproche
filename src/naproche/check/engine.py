@@ -22,8 +22,29 @@ def verify_task(axioms_repr, context_repr, proof_context_repr, goal_repr):
     result = run_prover(all_axioms, ("goal", goal_repr))
     return (False, result, h)
 
+class Reporter:
+    """Abstract base class for reporting checking progress and results."""
+    def log(self, message):
+        pass
+    def error(self, message):
+        pass
+    def step_verified(self, step_num, description, success, source):
+        pass
+
+class StdoutReporter(Reporter):
+    def log(self, message):
+        print(message)
+
+    def error(self, message):
+        print(f"Error: {message}")
+
+    def step_verified(self, step_num, description, success, source):
+        status = "Verified" if success else "Failed"
+        print(f"Step {step_num}: {description} -> {status} {source}")
+
+
 class Engine:
-    def __init__(self, base_path="."):
+    def __init__(self, base_path=".", reporter=None):
         self.translator = Translator()
         self.axioms = []
         self.context = []
@@ -31,6 +52,7 @@ class Engine:
         self.cache = ProverCache()
         self.base_path = base_path
         self.processed_files = set()
+        self.reporter = reporter if reporter else StdoutReporter()
 
     def check(self, statements: list[Statement], is_included=False):
         for stmt in statements:
@@ -46,10 +68,10 @@ class Engine:
             if os.path.exists(os.path.join(self.base_path, "math", filepath)):
                 full_path = os.path.join(self.base_path, "math", filepath)
             else:
-                print(f"Warning: Included file not found: {filepath}")
+                self.reporter.log(f"Warning: Included file not found: {filepath}")
                 return
 
-        print(f"Processing included file: {full_path}")
+        self.reporter.log(f"Processing included file: {full_path}")
         try:
             with open(full_path, 'r') as f:
                 content = f.read()
@@ -57,17 +79,18 @@ class Engine:
             all_stmts = []
             for block in blocks:
                 try:
-                    ast = parse_cnl(block)
+                    # block is a ForthelBlock, need block.content
+                    ast = parse_cnl(block.content)
                     stmts = convert_ast(ast)
                     all_stmts.extend(stmts)
                 except Exception as e:
-                    # print(f"Error parsing included block: {e}")
+                    # self.reporter.log(f"Error parsing included block: {e}")
                     pass
 
             # Recursively check/process with is_included=True
             self.check(all_stmts, is_included=True)
         except Exception as e:
-            print(f"Error processing included file {full_path}: {e}")
+            self.reporter.log(f"Error processing included file {full_path}: {e}")
 
     def process_statement(self, stmt: Statement, is_included=False):
         if isinstance(stmt, Directive):
@@ -81,12 +104,12 @@ class Engine:
                 name = f"ax_{self.counter}"
                 self.counter += 1
                 self.axioms.append((name, f))
-                print(f"Added axiom: {f}")
+                self.reporter.log(f"Added axiom: {f}")
 
         elif isinstance(stmt, Theorem):
             # If included, treat theorem as axiom (proved result)
             if is_included:
-                print(f"Importing Theorem: {stmt.author if stmt.author else 'Unknown'}")
+                self.reporter.log(f"Importing Theorem: {stmt.author if stmt.author else 'Unknown'}")
                 formulas = self.translator.translate_statement(stmt)
                 # Assume last formula is the theorem claim
                 if formulas:
@@ -94,12 +117,12 @@ class Engine:
                      name = f"thm_{self.counter}"
                      self.counter += 1
                      self.axioms.append((name, f))
-                     print(f"Added axiom (Theorem): {f}")
+                     self.reporter.log(f"Added axiom (Theorem): {f}")
             else:
-                print(f"Checking Theorem: {stmt.author if stmt.author else 'Unknown'}")
+                self.reporter.log(f"Checking Theorem: {stmt.author if stmt.author else 'Unknown'}")
                 formulas = self.translator.translate_statement(stmt)
                 if not formulas:
-                    print("Error: Could not translate theorem statement.")
+                    self.reporter.error("Could not translate theorem statement.")
                     return
 
                 if len(formulas) > 0:
@@ -107,14 +130,14 @@ class Engine:
                     for f in formulas[:-1]:
                         self.context.append((f"ctx_{self.counter}", f))
                         self.counter += 1
-                        print(f"Added context: {f}")
-                    print(f"Goal: {self.current_goal}")
+                        self.reporter.log(f"Added context: {f}")
+                    self.reporter.log(f"Goal: {self.current_goal}")
 
         elif isinstance(stmt, Proof):
             if is_included:
                 pass # Skip proofs of included files
             else:
-                print("Checking Proof (Parallel)...")
+                self.reporter.log("Checking Proof (Parallel)...")
                 self.check_proof(stmt)
 
     def check_proof(self, proof: Proof):
@@ -127,7 +150,7 @@ class Engine:
                 if isinstance(s, Sentence):
                     f = self.translator.translate_sentence(s)
                     if not f:
-                        print(f"Step {i+1}: Could not translate '{s.text}'")
+                        self.reporter.error(f"Step {i+1}: Could not translate '{s.text}'")
                         continue
 
                     text = s.text.strip()
@@ -139,27 +162,27 @@ class Engine:
                         if hasattr(self, 'current_goal'):
                             neg_goal = Not(self.current_goal)
                             proof_context.append((f"step_{i}", neg_goal))
-                            print(f"Step {i+1}: Assumed contrary: {neg_goal}")
+                            self.reporter.log(f"Step {i+1}: Assumed contrary: {neg_goal}")
                         continue
 
                     elif isinstance(f, Predicate) and f.name == "false":
-                        print(f"Step {i+1}: Contradiction.")
+                        self.reporter.log(f"Step {i+1}: Contradiction.")
                         ctx_copy = list(proof_context)
                         future = executor.submit(verify_task, self.axioms, self.context, ctx_copy, Predicate("false", []))
                         tasks.append((future, i+1, "Contradiction"))
 
                     elif is_assumption:
-                        print(f"Step {i+1}: Assumption/Definition: {f}")
+                        self.reporter.log(f"Step {i+1}: Assumption/Definition: {f}")
                         proof_context.append((f"step_{i}", f))
                     else:
-                        print(f"Step {i+1}: Verifying {f}")
+                        self.reporter.log(f"Step {i+1}: Verifying {f}")
                         ctx_copy = list(proof_context)
                         future = executor.submit(verify_task, self.axioms, self.context, ctx_copy, f)
                         tasks.append((future, i+1, f"Verification of {f}"))
 
                         proof_context.append((f"step_{i}", f))
 
-            print("Waiting for verification tasks...")
+            self.reporter.log("Waiting for verification tasks...")
             for future, step_num, desc in tasks:
                 try:
                     res = future.result()
@@ -170,9 +193,8 @@ class Engine:
                     else:
                         is_cached, success = res
 
-                    status = "Verified" if success else "Failed"
                     source = "(Cached)" if is_cached else "(Prover)"
-                    print(f"Step {step_num}: {desc} -> {status} {source}")
+                    self.reporter.step_verified(step_num, desc, success, source)
 
                 except Exception as e:
-                    print(f"Step {step_num}: Task failed with error: {e}")
+                    self.reporter.error(f"Step {step_num}: Task failed with error: {e}")

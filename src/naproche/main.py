@@ -26,11 +26,12 @@ def main():
 
     for i, block in enumerate(blocks):
         try:
-            ast = parse_cnl(block)
+            # block is now a ForthelBlock object, access content attribute
+            ast = parse_cnl(block.content)
             statements = convert_ast(ast)
             all_statements.extend(statements)
         except LarkError as e:
-            print(f"\n[Error] Parsing failed in Block {i+1}:")
+            print(f"\n[Error] Parsing failed in Block {i+1} (offset {block.start_offset}):")
             print(e)
             pass
         except Exception as e:
@@ -38,19 +39,8 @@ def main():
 
     # Determine base path for imports
     base_path = os.path.dirname(os.path.abspath(args.file))
-    # If checking math/examples/cantor.ftl.tex, base_path is math/examples/
-    # If input is relative, we resolve it.
 
-    # Actually, often imports are relative to the root of the "formalization library".
-    # Cantor imports `examples/preliminaries.ftl.tex`.
-    # If cantor is in `math/examples/cantor.ftl.tex`.
-    # And preliminaries is `math/examples/preliminaries.ftl.tex`.
-    # Then `examples/preliminaries.ftl.tex` implies the root is `math/`.
-
-    # We can try to guess the root.
-    # If file is `.../math/examples/cantor.ftl.tex`, root is `.../math`.
     if "math" in base_path:
-        # Split at 'math'
         root_path = base_path.split("math")[0] + "math"
     else:
         root_path = base_path
