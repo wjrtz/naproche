@@ -1,5 +1,16 @@
 from typing import List, Dict, Any, Optional
-from naproche.logic.models import Statement, Sentence, Directive, Theorem, Definition, Axiom, Lemma, Proof, Block
+from naproche.logic.models import (
+    Statement,
+    Sentence,
+    Directive,
+    Theorem,
+    Definition,
+    Axiom,
+    Lemma,
+    Proof,
+    Block,
+)
+
 
 def convert_ast(ast: List[Dict[str, Any]]) -> List[Statement]:
     statements = []
@@ -9,45 +20,46 @@ def convert_ast(ast: List[Dict[str, Any]]) -> List[Statement]:
             statements.append(stmt)
     return statements
 
+
 def convert_item(item: Dict[str, Any]) -> Optional[Statement]:
     if not isinstance(item, dict):
         return None
 
-    type_ = item.get('type')
+    type_ = item.get("type")
 
-    if type_ == 'directive':
-        return Directive(path=item['path'])
+    if type_ == "directive":
+        return Directive(path=item["path"])
 
-    elif type_ == 'sentence':
+    elif type_ == "sentence":
         # Reconstruct text from atoms
-        atoms = item['atoms']
+        atoms = item["atoms"]
         text = " ".join([str(a) for a in atoms])
         return Sentence(text=text, atoms=atoms)
 
-    elif type_ == 'environment':
-        name = item['name']
-        arg = item.get('arg')
-        content_data = item['content']
+    elif type_ == "environment":
+        name = item["name"]
+        arg = item.get("arg")
+        content_data = item["content"]
         content = convert_ast(content_data)
 
-        if name == 'theorem*': # Handling starred versions as same for now
+        if name == "theorem*":  # Handling starred versions as same for now
             return Theorem(name=name, content=content, author=arg)
-        elif name == 'definition*':
+        elif name == "definition*":
             return Definition(name=name, content=content)
-        elif name == 'axiom*':
+        elif name == "axiom*":
             return Axiom(name=name, content=content)
-        elif name == 'lemma*':
+        elif name == "lemma*":
             return Lemma(name=name, content=content)
-        elif name == 'proof':
+        elif name == "proof":
             return Proof(name=name, content=content)
-        elif name == 'definition':
-             return Definition(name=name, content=content)
-        elif name == 'theorem':
-             return Theorem(name=name, content=content, author=arg)
-        elif name == 'lemma':
-             return Lemma(name=name, content=content)
-        elif name == 'axiom':
-             return Axiom(name=name, content=content)
+        elif name == "definition":
+            return Definition(name=name, content=content)
+        elif name == "theorem":
+            return Theorem(name=name, content=content, author=arg)
+        elif name == "lemma":
+            return Lemma(name=name, content=content)
+        elif name == "axiom":
+            return Axiom(name=name, content=content)
         else:
             # Generic block
             return Block(name=name, content=content)

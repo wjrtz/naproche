@@ -1,6 +1,6 @@
 import unittest
 from naproche.check.engine import Engine, Reporter
-from naproche.logic.models import Statement, Sentence
+
 
 class MockReporter(Reporter):
     def __init__(self):
@@ -16,6 +16,7 @@ class MockReporter(Reporter):
 
     def step_verified(self, step_num, description, success, source):
         self.verified_steps.append((step_num, description, success, source))
+
 
 class TestEngineReporter(unittest.TestCase):
     def test_reporter_integration(self):
@@ -42,7 +43,8 @@ class TestEngineReporter(unittest.TestCase):
         # Or test a specific statement type.
 
         from naproche.logic.models import Axiom
-        stmt = Axiom(name="ax1", content=stmts) # stmts is list of sentences
+
+        stmt = Axiom(name="ax1", content=stmts)  # stmts is list of sentences
 
         engine.check([stmt])
 
@@ -65,5 +67,6 @@ class TestEngineReporter(unittest.TestCase):
         # Looking at converter.py is out of scope, but assuming it produces something Engine consumes.
         # If engine.check runs without error, we are good.
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ from naproche.parser.cnl_parser import parse_cnl
 from naproche.logic.converter import convert_ast
 from naproche.check.cache import CACHE_FILE
 
+
 class TestIntegration(unittest.TestCase):
     def setUp(self):
         self.simple_file = "math/examples/simple.ftl.tex"
@@ -17,7 +18,7 @@ class TestIntegration(unittest.TestCase):
         if not os.path.exists(self.simple_file):
             return
 
-        with open(self.simple_file, 'r') as f:
+        with open(self.simple_file, "r") as f:
             content = f.read()
 
         blocks = extract_forthel_blocks(content)
@@ -33,7 +34,7 @@ class TestIntegration(unittest.TestCase):
         # Verify cache has entries via SQL
         cursor = engine.cache.conn.cursor()
         cursor.execute("SELECT count(*) FROM cache WHERE result=1")
-        count = cursor.fetchone()[0]
+        _count = cursor.fetchone()[0]
         # self.assertTrue(count > 0, "Expected at least one successful verification")
         # Since eprover might be missing, we can't guarantee success=True.
         # But we can check that cache is not empty (results are stored).
@@ -45,7 +46,7 @@ class TestIntegration(unittest.TestCase):
         if not os.path.exists(self.cantor_file):
             return
 
-        with open(self.cantor_file, 'r') as f:
+        with open(self.cantor_file, "r") as f:
             content = f.read()
 
         blocks = extract_forthel_blocks(content)
@@ -57,6 +58,7 @@ class TestIntegration(unittest.TestCase):
 
         engine = Engine(base_path="math")
         engine.check(all_stmts)
+
 
 if __name__ == "__main__":
     unittest.main()

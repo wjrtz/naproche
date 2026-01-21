@@ -1,5 +1,6 @@
 import unittest
-from naproche.parser.preprocessor import extract_forthel_blocks, ForthelBlock
+from naproche.parser.preprocessor import extract_forthel_blocks
+
 
 class TestPreprocessor(unittest.TestCase):
     def test_single_block(self):
@@ -67,5 +68,6 @@ B
         expected_start = content.find("Let $x$.")
         self.assertEqual(blocks[0].start_offset, expected_start)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

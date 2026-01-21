@@ -1,14 +1,17 @@
 import subprocess
 import tempfile
 import os
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 from naproche.prover.tptp import formulas_to_tptp_file
 from naproche.logic.fol import Formula
 
-def run_prover(axioms: List[Tuple[str, Formula]], conjecture: Tuple[str, Formula], timeout=5) -> bool:
+
+def run_prover(
+    axioms: List[Tuple[str, Formula]], conjecture: Tuple[str, Formula], timeout=5
+) -> bool:
     tptp_content = formulas_to_tptp_file(axioms, conjecture)
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.p', delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".p", delete=False) as tmp:
         tmp.write(tptp_content)
         tmp_path = tmp.name
 

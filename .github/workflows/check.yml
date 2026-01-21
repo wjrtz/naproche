@@ -1,0 +1,27 @@
+name: Check Naproche Python Implementation
+
+on:
+  pull_request:
+    paths:
+      - 'src/naproche/**/*.py'
+      - 'tests/**/*.py'
+      - 'Dockerfile'
+      - '.github/workflows/check.yml'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t naproche-test .
+
+      - name: Lint with ruff
+        run: docker run --rm naproche-test ruff check .
+
+      - name: Check formatting with ruff
+        run: docker run --rm naproche-test ruff format --check .
+
+      - name: Run tests
+        run: docker run --rm naproche-test pytest tests/

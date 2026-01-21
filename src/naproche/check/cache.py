@@ -1,14 +1,17 @@
 import hashlib
 import sqlite3
-import os
 from naproche.logic.fol import Formula
 
 CACHE_FILE = ".naproche_cache.db"
 
+
 def get_formula_string(formula: Formula) -> str:
     return str(formula)
 
-def compute_hash(axioms: list[tuple[str, Formula]], conjecture: tuple[str, Formula]) -> str:
+
+def compute_hash(
+    axioms: list[tuple[str, Formula]], conjecture: tuple[str, Formula]
+) -> str:
     data = []
     for name, f in axioms:
         data.append(f"{name}:{get_formula_string(f)}")
@@ -17,7 +20,8 @@ def compute_hash(axioms: list[tuple[str, Formula]], conjecture: tuple[str, Formu
     data.append(f"CONJ:{name}:{get_formula_string(f)}")
 
     full_str = "|".join(data)
-    return hashlib.sha256(full_str.encode('utf-8')).hexdigest()
+    return hashlib.sha256(full_str.encode("utf-8")).hexdigest()
+
 
 class ProverCache:
     def __init__(self):
@@ -43,7 +47,10 @@ class ProverCache:
 
     def set(self, key: str, value: bool):
         with self.conn:
-            self.conn.execute("INSERT OR REPLACE INTO cache (hash, result) VALUES (?, ?)", (key, value))
+            self.conn.execute(
+                "INSERT OR REPLACE INTO cache (hash, result) VALUES (?, ?)",
+                (key, value),
+            )
 
     def close(self):
         self.conn.close()

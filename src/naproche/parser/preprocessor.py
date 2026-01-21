@@ -1,5 +1,6 @@
 import re
 
+
 class ForthelBlock:
     def __init__(self, content, start_offset, end_offset):
         self.content = content
@@ -9,6 +10,7 @@ class ForthelBlock:
     def __repr__(self):
         return f"ForthelBlock(start={self.start_offset}, end={self.end_offset})"
 
+
 def extract_forthel_blocks(latex_content):
     """
     Extracts the content of 'forthel' environments from a LaTeX file.
@@ -16,7 +18,7 @@ def extract_forthel_blocks(latex_content):
     """
     # Regex to capture content between \begin{forthel} and \end{forthel}
     # re.DOTALL makes . match newlines
-    pattern = re.compile(r'\\begin\{forthel\}(.*?)\\end\{forthel\}', re.DOTALL)
+    pattern = re.compile(r"\\begin\{forthel\}(.*?)\\end\{forthel\}", re.DOTALL)
 
     matches = pattern.finditer(latex_content)
     blocks = []
