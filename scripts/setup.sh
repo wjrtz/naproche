@@ -92,3 +92,7 @@ if [ ! -f "provers/eprover" ]; then
 fi
 
 echo "Setup Complete"
+
+# Export environment variables for provers
+export NAPROCHE_VAMPIRE="$(pwd)/provers/vampire"
+export NAPROCHE_EPROVER="$(pwd)/provers/eprover"
