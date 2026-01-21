@@ -155,6 +155,17 @@ class Translator:
 
         # --- PRELIMINARIES PATTERNS ---
 
+        # Simple equality: 1 = 1
+        if "=" in atoms_str:
+            idx = atoms_str.index("=")
+            if (
+                idx > 0
+                and idx < len(atoms_str) - 1
+                and atoms_str[idx - 1] == "1"
+                and atoms_str[idx + 1] == "1"
+            ):
+                return Equal(Constant("1"), Constant("1"))
+
         # "The empty set is the set that has no elements."
         if (
             "empty" in atoms_str

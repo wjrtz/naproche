@@ -22,13 +22,18 @@ from naproche.parser.cnl_parser import parse_cnl
 from naproche.logic.converter import convert_ast
 
 
-def verify_task(axioms_repr, context_repr, proof_context_repr, goal_repr):
+def verify_task(
+    axioms_repr, context_repr, proof_context_repr, goal_repr, use_cache=True
+):
     all_axioms = axioms_repr + context_repr + proof_context_repr
-    cache = ProverCache()
     h = compute_hash(all_axioms, ("goal", goal_repr))
-    cached = cache.get(h)
-    if cached is not None:
-        return (True, cached, h)
+
+    if use_cache:
+        cache = ProverCache()
+        cached = cache.get(h)
+        if cached is not None:
+            return (True, cached, h)
+
     result = run_prover(all_axioms, ("goal", goal_repr))
     return (False, result, h)
 
@@ -59,15 +64,20 @@ class StdoutReporter(Reporter):
 
 
 class Engine:
-    def __init__(self, base_path=".", reporter=None):
+    def __init__(self, base_path=".", reporter=None, use_cache=True):
         self.translator = Translator()
         self.axioms = []
         self.context = []
         self.counter = 0
-        self.cache = ProverCache()
         self.base_path = base_path
         self.processed_files = set()
         self.reporter = reporter if reporter else StdoutReporter()
+        self.global_use_cache = use_cache
+        self.current_cache_enabled = use_cache
+        if use_cache:
+            self.cache = ProverCache()
+        else:
+            self.cache = None
 
     def check(self, statements: list[Statement], is_included=False):
         for stmt in statements:
@@ -109,8 +119,15 @@ class Engine:
 
     def process_statement(self, stmt: Statement, is_included=False):
         if isinstance(stmt, Directive):
-            path = stmt.path
-            self.process_file(path)
+            if stmt.name == "read" and stmt.args:
+                path = stmt.args[0]
+                self.process_file(path)
+            elif stmt.name == "cache" and stmt.args:
+                arg = stmt.args[0]
+                if arg == "on":
+                    self.current_cache_enabled = self.global_use_cache
+                elif arg == "off":
+                    self.current_cache_enabled = False
 
         elif (
             isinstance(stmt, Definition)
@@ -206,6 +223,7 @@ class Engine:
                             self.context,
                             ctx_copy,
                             Predicate("false", []),
+                            self.current_cache_enabled,
                         )
                         tasks.append((future, i + 1, "Contradiction"))
 
@@ -216,7 +234,12 @@ class Engine:
                         self.reporter.log(f"Step {i + 1}: Verifying {f}")
                         ctx_copy = list(proof_context)
                         future = executor.submit(
-                            verify_task, self.axioms, self.context, ctx_copy, f
+                            verify_task,
+                            self.axioms,
+                            self.context,
+                            ctx_copy,
+                            f,
+                            self.current_cache_enabled,
                         )
                         tasks.append((future, i + 1, f"Verification of {f}"))
 
@@ -228,8 +251,11 @@ class Engine:
                     res = future.result()
                     if len(res) == 3:
                         is_cached, success, h = res
-                        if not is_cached:
-                            self.cache.set(h, success)
+                        if not is_cached and self.current_cache_enabled:
+                            if self.cache:
+                                self.cache.set(h, success)
+                            else:
+                                pass
                     else:
                         is_cached, success = res
 
