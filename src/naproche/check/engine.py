@@ -150,7 +150,7 @@ class Engine:
                 if isinstance(s, Sentence):
                     f = self.translator.translate_sentence(s)
                     if not f:
-                        self.reporter.log(f"Step {i+1}: Could not translate '{s.text}'")
+                        self.reporter.error(f"Step {i+1}: Could not translate '{s.text}'")
                         continue
 
                     text = s.text.strip()
@@ -197,4 +197,4 @@ class Engine:
                     self.reporter.step_verified(step_num, desc, success, source)
 
                 except Exception as e:
-                    self.reporter.log(f"Step {step_num}: Task failed with error: {e}")
+                    self.reporter.error(f"Step {step_num}: Task failed with error: {e}")

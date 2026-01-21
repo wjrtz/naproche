@@ -40,7 +40,17 @@ class DiagnosticCollector(Reporter):
         pass
 
     def error(self, message):
-        pass
+        line = self.current_block_start_line
+        d = Diagnostic(
+            range=Range(
+                start=Position(line=line, character=0),
+                end=Position(line=line+1, character=0),
+            ),
+            message=f"Error: {message}",
+            severity=DiagnosticSeverity.Error,
+            source="Naproche",
+        )
+        self.diagnostics.append(d)
 
     def step_verified(self, step_num, description, success, source):
         if not success:
