@@ -6,14 +6,14 @@ authors = ["Jules"]
 description = "Naproche support for Zed"
 repository = "https://github.com/naproche/naproche"
 
-[grammars.latex]
-repository = "https://github.com/latex-lsp/latex-grammar"
-commit = "master"
+[grammars.naproche]
+repository = "https://github.com/latex-lsp/tree-sitter-latex"
+commit = "2945d898517e57d606f85c3b997c6530691507d3"
 
 [languages.naproche]
 name = "Naproche"
-grammar = "latex"
-path_suffixes = ["ftl.tex", "ftl"]
+grammar = "naproche"
+path_suffixes = ["ftl.tex"]
 
 [lsp]
 server_name = "naproche-ls"

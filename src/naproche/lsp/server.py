@@ -23,21 +23,6 @@ from lark.exceptions import LarkError, UnexpectedInput
 
 server = LanguageServer("naproche-ls", "v0.1")
 
-class LSReporter(Reporter):
-    def __init__(self, diagnostics_list, offset_mapper):
-        self.diagnostics = diagnostics_list
-        self.offset_mapper = offset_mapper
-
-    def log(self, message):
-        pass
-
-    def error(self, message):
-         pass
-
-    def step_verified(self, step_num, description, success, source):
-        if not success:
-            pass
-
 class DiagnosticCollector(Reporter):
     def __init__(self, diagnostics, uri, current_block_start_line=0):
         self.diagnostics = diagnostics
