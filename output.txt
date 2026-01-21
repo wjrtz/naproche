@@ -1,0 +1,1 @@
+eprover: che_proofcontrol.c:163: sat_solver_init: Assertion `status' failed.

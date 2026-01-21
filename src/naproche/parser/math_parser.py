@@ -9,11 +9,31 @@ math_grammar = r"""
 
     ?relation: term REL_OP term
 
-    ?term: simple_term
+    ?term: bin_op
+         | simple_term
          | func_app
          | subscript
          | set_comp
-         | bin_op
+
+    // Priority: bin_op should be lower than func_app/subscript to bind looser,
+    // but in Lark ?term precedence depends on order.
+    // However, relation needs to bind loosest.
+    // "F : A -> B" -> colon(F, to(A,B))
+    // If -> is BIN_OP, "A -> B" is term.
+    // "F : Term" matches relation.
+    // But "F : A \leftrightarrow B"? \leftrightarrow is REL_OP.
+    // relation: term REL_OP term.
+    // "F : A" is relation. "\leftrightarrow B"?
+    // "F : A" cannot be LHS of another relation if relation is not in term.
+    // Maybe we need chained relations or support "F : (A <-> B)"?
+    // Actually "F : A <-> B" is usually "F : (A <-> B)" i.e. F maps A to B bijectively.
+    // So <-> should be BIN_OP (constructor for map type) OR
+    // colon binds weaker than <->? No, colon usually binds weaker.
+    // If <-> is REL_OP, then "A <-> B" is Formula.
+    // "F : Formula" is not allowed by grammar.
+    // So <-> must be BIN_OP for this syntax to work as a Type/Set constructor.
+
+    // Let's move LEFTTRIGHTARROW to BIN_OP.
 
     ?simple_term: VARIABLE
                 | NUMBER
@@ -21,7 +41,7 @@ math_grammar = r"""
                 | "(" term ")"
 
     func_app: LATEX_CMD "{" term "}" ("{" term "}")*
-            | LATEX_CMD "(" term ")"
+            | LATEX_CMD "(" term ("," term)* ")"  // \cmd(x) or \cmd(x,y)
             | VARIABLE "(" term ("," term)* ")"  // f(x) or f(x,y)
 
     subscript: term "_" (simple_term | "{" term "}")
@@ -37,8 +57,8 @@ math_grammar = r"""
     RIGHTARROW: /\\rightarrow/
     LEFTTRIGHTARROW: /\\leftrightarrow/
 
-    REL_OP: "<" | "=" | "\\leq" | "\\in" | "\\subseteq" | ">" | "\\geq" | "\\neq" | COLON | LEFTTRIGHTARROW
-    BIN_OP: "\\setminus" | "\\cup" | "\\cap" | "\\times" | "+" | "-" | "\\cdot" | "\\circ" | TO | RIGHTARROW
+    REL_OP: "<" | "=" | "\\leq" | "\\in" | "\\subseteq" | ">" | "\\geq" | "\\neq" | COLON
+    BIN_OP: "\\setminus" | "\\cup" | "\\cap" | "\\times" | "+" | "-" | "\\cdot" | "\\circ" | TO | RIGHTARROW | LEFTTRIGHTARROW
 
     VARIABLE: /[a-zA-Z]/
     NUMBER: /\d+/
@@ -66,21 +86,6 @@ class MathTransformer(Transformer):
         elif op_str == "\\subseteq":
             return Predicate("subset", [left, right])
         elif op_str == ":":
-            # f : A -> B is usually parsed as "f" and "A->B" if -> is BIN_OP?
-            # But here ":" is REL_OP.
-            # If A -> B is parsed as Term, then it works.
-            # If -> is REL_OP, then "A -> B" is Formula.
-            # "f : A -> B" is "f REL (A REL B)". But REL_OP is not recursive in `expression` usually?
-            # grammar: relation: term REL_OP term.
-            # So "A -> B" must be a term for "f : (A -> B)" to work.
-            # But I added -> to REL_OP.
-            # So "A -> B" is a relation (Formula).
-            # Then "f : (A -> B)" is "Term REL Formula" ?? Invalid.
-            # -> should be BIN_OP if it creates a type/set?
-            # In legacy, -> is used in mapNotion.
-            # Let's keep -> in REL_OP for now, but maybe it should be BIN_OP for arrow types?
-            # If I make it BIN_OP, "A -> B" is a Function/Term "arrow(A,B)".
-            # Then "f : A -> B" is "f : arrow(A,B)" -> Predicate("colon", [f, arrow(A,B)]).
             return Predicate("colon", [left, right])
         elif op_str == "\\to" or op_str == "\\rightarrow":
              return Predicate("to", [left, right])
@@ -105,22 +110,41 @@ class MathTransformer(Transformer):
         return item
 
     def VARIABLE(self, token):
-        # Explicitly handle VARIABLE token if it bypasses simple_term
+        # This will be called when VARIABLE is a leaf
+        # But in func_app, VARIABLE is part of rule
         return Variable(token.value)
 
     def func_app(self, items):
         first = items[0]
-        if isinstance(first, Token):
-            # VARIABLE(args)
-            func_name = first.value
-            args = items[1:]
+        # Lark might pass transformed children or raw tokens depending on rule
+        # If VARIABLE was transformed to Variable object, then `first` is Variable.
+
+        if isinstance(first, Variable):
+             # Rule: VARIABLE "(" term ...
+             func_name = first.name
+             args = items[1:]
+        elif isinstance(first, Token):
+            # Probably LATEX_CMD token
+            if first.type == "LATEX_CMD":
+                func_name = first.value[1:]
+                args = items[1:]
+            elif first.type == "VARIABLE":
+                 # Should be caught by isinstance(Variable) if transformed
+                 func_name = first.value
+                 args = items[1:]
+            else:
+                 func_name = str(first)
+                 args = items[1:]
         else:
-            # LATEX_CMD or result of LATEX_CMD token
-            # But wait, LATEX_CMD token is consumed in rule.
-            # In rule: LATEX_CMD "{" term ...
-            # items[0] is the token LATEX_CMD
-            func_name = first.value[1:]
-            args = items[1:]
+             # Maybe it's a Constant (from simple_term rule?)
+             # But func_app uses explicit tokens in rule definition
+             if hasattr(first, 'name'):
+                 func_name = first.name
+                 args = items[1:]
+             else:
+                 # Fallback
+                 func_name = str(first)
+                 args = items[1:]
 
         return Function(func_name, args)
 
