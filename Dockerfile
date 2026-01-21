@@ -37,7 +37,7 @@ RUN curl -L https://github.com/vprover/vampire/archive/refs/tags/v4.9casc2024.ta
     cd vampire-4.9casc2024 && \
     cmake . -DBUILD_SHARED_LIBS=0 && \
     make -j$(nproc) && \
-    cp bin/vampire /usr/local/bin/vampire && \
+    cp bin/vampire_rel_static /usr/local/bin/vampire && \
     cd .. && \
     rm -rf vampire.tar.gz vampire-4.9casc2024
 
