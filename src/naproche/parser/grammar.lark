@@ -4,7 +4,9 @@ element: directive
        | environment
        | sentence
 
-directive: "[" word (path | word)* "]"
+directive: "[" directive_name directive_arg* "]"
+directive_name: "/"? word
+directive_arg: path | /[^\s\]]+/
 
 path: "\\path{" /[^}]+/ "}"
 
@@ -16,17 +18,19 @@ END.2: "\\end"
 env_name: /[a-zA-Z*]+/
 optional_arg: "[" /[^\]]+/ "]"
 
-sentence: atom+ "."
+sentence: atom+ DOT?
 
 atom: math | word | other_symbol | punctuation
 
 math: INLINE_MATH | DISPLAY_MATH
-INLINE_MATH: "$" /[^$]+/ "$"
-DISPLAY_MATH: "\\[" /(.|\n)+?/ "\\]"
+INLINE_MATH: /\$[^$]+\$/
+DISPLAY_MATH: /\\\[(.|\n)+?\\\]/
 
 word: /[a-zA-Z0-9_]+/
 other_symbol: /[^\s\w$.\[\]\\{}]+/ | BACKSLASH | BRACE_OPEN | BRACE_CLOSE
 punctuation: "," | ":" | ";"
+
+DOT: "."
 
 BACKSLASH: "\\"
 BRACE_OPEN: "{"
