@@ -56,3 +56,7 @@ dist-newstyle/
 # Python
 __pycache__/
 .naproche_cache.db
+
+# Binaries and Provers
+provers/
+bin/

@@ -9,14 +9,14 @@ ENV PATH="/root/.cargo/bin:$PATH"
 COPY pyproject.toml uv.lock* ./
 COPY scripts/setup.sh ./scripts/setup.sh
 
-# Run setup with system deps
-RUN ./scripts/setup.sh --install-system-deps --install-python-deps --install-provers
+# Install sudo and run setup script
+RUN apt-get update && apt-get install -y sudo && ./scripts/setup.sh
 
 # Copy the rest of the application
 COPY . .
 
 # Sync again to install the project itself
-RUN ./scripts/setup.sh --install-python-deps
+RUN ./scripts/setup.sh
 
 # Set up environment
 # Ensure .venv/bin is in PATH
