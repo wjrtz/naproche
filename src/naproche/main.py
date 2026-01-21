@@ -14,6 +14,9 @@ def main():
     parser.add_argument(
         "--no-cache", action="store_true", help="Disable the proof cache"
     )
+    parser.add_argument(
+        "--benchmark", action="store_true", help="Run in benchmark mode to compare provers"
+    )
     args = parser.parse_args()
 
     try:
@@ -52,7 +55,11 @@ def main():
         root_path = base_path
 
     print(f"\nVerifying {len(all_statements)} statements...")
-    engine = Engine(base_path=root_path, use_cache=not args.no_cache)
+    engine = Engine(
+        base_path=root_path,
+        use_cache=not args.no_cache,
+        benchmark=args.benchmark
+    )
     engine.check(all_statements)
 
     print("\nDone.")
