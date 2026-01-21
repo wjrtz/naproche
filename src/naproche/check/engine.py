@@ -21,6 +21,11 @@ from naproche.logic.fol import (
     Constant,
     Variable,
     substitute,
+    Function,
+    Equal,
+    And,
+    Or,
+    Iff,
 )
 from naproche.check.cache import ProverCache, compute_hash_formula, get_formula_string
 from naproche.check.prover_manager import ProverManager
@@ -40,6 +45,7 @@ def verify_task(
     use_cache=True,
     benchmark_mode=False,
     prover_manager=None,
+    timeout_override=None
 ):
     all_axioms = axioms_repr + context_repr + proof_context_repr
 
@@ -86,7 +92,8 @@ def verify_task(
         return (False, success, goal_hash, results)
     else:
         # Standard mode
-        result = prover_instance.prove(all_axioms, (goal_name, goal_f), timeout=5.0)
+        t = timeout_override if timeout_override else 5.0
+        result = prover_instance.prove(all_axioms, (goal_name, goal_f), timeout=t)
 
         if use_cache and not benchmark_mode:
             cache = ProverCache()
@@ -165,11 +172,76 @@ class Engine:
         self.current_cache_enabled = use_cache
         self.benchmark_mode = benchmark
         self.prover_manager = ProverManager()
+        self.timelimit = 5.0
+
+        # Add built-in structural axioms for set theory basics used in examples
+        self._add_builtin_axioms()
 
         if use_cache:
             self.cache = ProverCache()
         else:
             self.cache = None
+
+    def _add_builtin_axioms(self):
+        # ! [X, A, B] : (in(X, setminus(A, B)) <=> (in(X, A) & ~in(X, B)))
+        x = Variable("X_set")
+        a = Variable("A_set")
+        b = Variable("B_set")
+
+        # setminus
+        f_setminus = Function("setminus", [a, b])
+        lhs = Predicate("in", [x, f_setminus])
+        rhs = And(Predicate("in", [x, a]), Not(Predicate("in", [x, b])))
+        ax_setminus = Quantifier("forall", [x, a, b], Iff(lhs, rhs))
+        self.axioms.append(("builtin_setminus", ax_setminus))
+
+        # cap
+        f_cap = Function("cap", [a, b])
+        lhs_cap = Predicate("in", [x, f_cap])
+        rhs_cap = And(Predicate("in", [x, a]), Predicate("in", [x, b]))
+        ax_cap = Quantifier("forall", [x, a, b], Iff(lhs_cap, rhs_cap))
+        self.axioms.append(("builtin_cap", ax_cap))
+
+        # cup
+        f_cup = Function("cup", [a, b])
+        lhs_cup = Predicate("in", [x, f_cup])
+        rhs_cup = Or(Predicate("in", [x, a]), Predicate("in", [x, b]))
+        ax_cup = Quantifier("forall", [x, a, b], Iff(lhs_cup, rhs_cup))
+        self.axioms.append(("builtin_cup", ax_cup))
+
+        # empty_set
+        c_empty = Constant("empty_set")
+        ax_empty = Quantifier("forall", [x], Not(Predicate("in", [x, c_empty])))
+        self.axioms.append(("builtin_empty", ax_empty))
+
+        # singleton(Y) -> {Y}
+        y = Variable("Y_sing")
+        f_sing = Function("singleton", [y])
+        lhs_sing = Predicate("in", [x, f_sing])
+        rhs_sing = Equal(x, y)
+        ax_sing = Quantifier("forall", [x, y], Iff(lhs_sing, rhs_sing))
+        self.axioms.append(("builtin_singleton", ax_sing))
+
+        # set_enum(Y, Z) -> {Y, Z} (pair set)
+        z = Variable("Z_enum")
+        f_enum = Function("set_enum", [y, z])
+        lhs_enum = Predicate("in", [x, f_enum])
+        rhs_enum = Or(Equal(x, y), Equal(x, z))
+        ax_enum = Quantifier("forall", [x, y, z], Iff(lhs_enum, rhs_enum))
+        self.axioms.append(("builtin_set_enum", ax_enum))
+
+        # pair equality: (a,b) = (c,d) => a=c & b=d
+        # Handled by provers usually if tuples are supported, but explicitly:
+        # We model pair as Function("pair", [a,b]).
+        # Need: ! [A,B,C,D] : (pair(A,B) = pair(C,D) => (A=C & B=D))
+        # Note: Converse (A=C & B=D => pair(A,B)=pair(C,D)) is true by equality logic.
+        va, vb, vc, vd = Variable("Va"), Variable("Vb"), Variable("Vc"), Variable("Vd")
+        pair1 = Function("pair", [va, vb])
+        pair2 = Function("pair", [vc, vd])
+        conc = And(Equal(va, vc), Equal(vb, vd))
+        ax_pair = Quantifier("forall", [va, vb, vc, vd], Implies(Equal(pair1, pair2), conc))
+        self.axioms.append(("builtin_pair_eq", ax_pair))
+
 
     def check(self, statements: list[Statement], is_included=False):
         for stmt in statements:
@@ -226,6 +298,12 @@ class Engine:
                     self.reporter.log(f"Switched to prover: {prover_name}")
                 else:
                     self.reporter.error(f"Unknown prover: {prover_name}")
+            elif stmt.name == "timelimit" and stmt.args:
+                try:
+                    self.timelimit = float(stmt.args[0])
+                    self.reporter.log(f"Timelimit set to {self.timelimit}")
+                except:
+                    pass
 
         elif (
             isinstance(stmt, Definition)
@@ -239,6 +317,37 @@ class Engine:
                 self.counter += 1
                 self.axioms.append((name, f))
                 self.reporter.log(f"Added axiom: {f}")
+
+            # Check for macros
+            for f in formulas:
+                if isinstance(f, Predicate) and f.name == "stand_for":
+                    if len(f.args) == 2:
+                        phrase_term = f.args[0]
+                        repl_term = f.args[1]
+                        if isinstance(phrase_term, Constant):
+                            phrase = phrase_term.name
+                            self.translator.add_macro(phrase, repl_term)
+                            self.reporter.log(f"Added macro: '{phrase}' -> {repl_term}")
+
+        elif isinstance(stmt, Sentence):
+            # Handle top-level sentences (like 'Let ... stand for ...') as Axioms/Assumptions
+            formulas = self.translator.translate_statement(stmt)
+            for f in formulas:
+                name = f"ax_{self.counter}"
+                self.counter += 1
+                self.axioms.append((name, f))
+                self.reporter.log(f"Added axiom (Sentence): {f}")
+
+            # Check for macros
+            for f in formulas:
+                if isinstance(f, Predicate) and f.name == "stand_for":
+                    if len(f.args) == 2:
+                        phrase_term = f.args[0]
+                        repl_term = f.args[1]
+                        if isinstance(phrase_term, Constant):
+                            phrase = phrase_term.name
+                            self.translator.add_macro(phrase, repl_term)
+                            self.reporter.log(f"Added macro: '{phrase}' -> {repl_term}")
 
         elif isinstance(stmt, Theorem):
             # If included, treat theorem as axiom (proved result)
@@ -280,6 +389,7 @@ class Engine:
 
     def check_proof(self, proof: Proof):
         proof_context = []
+        scope_stack = []
 
         # Decompose the current goal to setup the proof context
         current_goal = getattr(self, "current_goal", None)
@@ -319,88 +429,116 @@ class Engine:
         current_prover = self.prover_manager.get_active_prover()
 
         with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-            for i, s in enumerate(proof.content):
-                if isinstance(s, Sentence):
-                    f = self.translator.translate_sentence(s)
-                    # If f is None, it means the translator couldn't produce a formula.
-                    # This might be structural (like "End.") or a failure.
-                    # Since we want to silence "End.", we should check if it's an expected "no-op" or failure.
-                    # But Translator currently returns None for both.
-                    # However, Translator logic returns None explicitly for "End" or structural.
-                    # If it failed to match anything, it also returns None.
-                    # We should probably improve Translator to distinguish?
-                    # For now, let's assume if it contains "End" or "Qed", it's fine.
-                    text = s.text.strip()
+            for i, stmt in enumerate(proof.content):
+                # Handle Directive inside proof (e.g. timelimit)
+                if isinstance(stmt, Directive):
+                    if stmt.name == "timelimit":
+                        try:
+                            self.timelimit = float(stmt.args[0])
+                        except: pass
+                    continue
 
-                    if not f:
-                        # Check if it's a structural end marker we can ignore silently
-                        if "End" in s.atoms or "qed" in s.atoms or "Proof" in s.atoms:
-                            continue
+                if not isinstance(stmt, Sentence):
+                    continue
 
-                        self.reporter.error(
-                            f"Step {i + 1}: Could not translate '{s.text}'"
-                        )
-                        continue
-                    is_assumption = False
-                    if (
-                        text.startswith("Assume")
-                        or text.startswith("Let")
-                        or text.startswith("Take")
-                        or text.startswith("Define")
-                        or text.startswith("Consider")
-                    ):
-                        is_assumption = True
+                s = stmt
+                f = self.translator.translate_sentence(s)
 
-                    if isinstance(f, Predicate) and f.name == "contrary":
-                        # If we decomposed the goal, we should use the *current* goal focus
-                        # or the original goal? "contrary" usually means negation of current goal.
-                        if current_goal:
-                            goal_to_negate = current_goal
-                            neg_goal = Not(goal_to_negate)
-                            proof_context.append((f"step_{i}", neg_goal))
-                            self.reporter.log(
-                                f"Step {i + 1}: Assumed contrary: {neg_goal}"
-                            )
-                        else:
-                            self.reporter.error("Cannot assume contrary: No current goal.")
+                text = s.text.strip()
+                atoms = getattr(s, "atoms", [])
+
+                # Check for "Case" prefix (handled by translator returning a formula, but we need scoping)
+                # If translator returns assumption for Case, we should push scope.
+                # If translator strips "Case", we check text.
+                is_case = atoms and atoms[0] == "Case"
+
+                if atoms and (atoms[0] == "End" or (len(atoms) > 1 and atoms[0] == "Case" and atoms[1] == "End")):
+                    # Pop scope
+                    if scope_stack:
+                         proof_context = scope_stack.pop()
+                         self.reporter.log(f"Step {i+1}: End of case/scope.")
+                    continue
+
+                if not f:
+                    # Check if it's a structural end marker we can ignore silently
+                    if "End" in atoms or "qed" in atoms or "Proof" in atoms:
                         continue
 
-                    elif isinstance(f, Predicate) and f.name == "false":
-                        self.reporter.log(f"Step {i + 1}: Contradiction.")
-                        ctx_copy = list(proof_context)
-                        future = executor.submit(
-                            verify_task,
-                            self.axioms,
-                            self.context,
-                            ctx_copy,
-                            Predicate("false", []),
-                            current_prover,
-                            self.current_cache_enabled,
-                            self.benchmark_mode,
-                            self.prover_manager,
-                        )
-                        tasks.append((future, i + 1, "Contradiction"))
+                    self.reporter.error(
+                        f"Step {i + 1}: Could not translate '{s.text}'"
+                    )
+                    continue
 
-                    elif is_assumption:
-                        self.reporter.log(f"Step {i + 1}: Assumption/Definition: {f}")
-                        proof_context.append((f"step_{i}", f))
+                if is_case:
+                     # Start new scope
+                     # Save current context to stack
+                     scope_stack.append(list(proof_context))
+                     self.reporter.log(f"Step {i+1}: Case assumption: {f}")
+                     proof_context.append((f"step_{i}", f))
+                     continue
+
+                is_assumption = False
+                if (
+                    text.startswith("Assume")
+                    or text.startswith("Let")
+                    or text.startswith("Take")
+                    or text.startswith("Define")
+                    or text.startswith("Consider")
+                ):
+                    is_assumption = True
+
+                if isinstance(f, Predicate) and f.name == "contrary":
+                    # If we decomposed the goal, we should use the *current* goal focus
+                    # or the original goal? "contrary" usually means negation of current goal.
+                    if current_goal:
+                        goal_to_negate = current_goal
+                        neg_goal = Not(goal_to_negate)
+                        proof_context.append((f"step_{i}", neg_goal))
+                        self.reporter.log(
+                            f"Step {i + 1}: Assumed contrary: {neg_goal}"
+                        )
                     else:
-                        self.reporter.log(f"Step {i + 1}: Verifying {f}")
-                        ctx_copy = list(proof_context)
-                        future = executor.submit(
-                            verify_task,
-                            self.axioms,
-                            self.context,
-                            ctx_copy,
-                            f,
-                            current_prover,
-                            self.current_cache_enabled,
-                            self.benchmark_mode,
-                            self.prover_manager,
-                        )
-                        tasks.append((future, i + 1, f"Verification of {f}"))
+                        self.reporter.error("Cannot assume contrary: No current goal.")
+                    continue
 
-                        proof_context.append((f"step_{i}", f))
+                elif isinstance(f, Predicate) and f.name == "false":
+                    self.reporter.log(f"Step {i + 1}: Contradiction.")
+                    ctx_copy = list(proof_context)
+                    future = executor.submit(
+                        verify_task,
+                        self.axioms,
+                        self.context,
+                        ctx_copy,
+                        Predicate("false", []),
+                        current_prover,
+                        self.current_cache_enabled,
+                        self.benchmark_mode,
+                        self.prover_manager,
+                        self.timelimit
+                    )
+                    tasks.append((future, i + 1, "Contradiction"))
+
+                elif is_assumption:
+                    self.reporter.log(f"Step {i + 1}: Assumption/Definition: {f}")
+                    proof_context.append((f"step_{i}", f))
+                else:
+                    self.reporter.log(f"Step {i + 1}: Verifying {f}")
+                    ctx_copy = list(proof_context)
+                    future = executor.submit(
+                        verify_task,
+                        self.axioms,
+                        self.context,
+                        ctx_copy,
+                        f,
+                        current_prover,
+                        self.current_cache_enabled,
+                        self.benchmark_mode,
+                        self.prover_manager,
+                        self.timelimit
+                    )
+                    tasks.append((future, i + 1, f"Verification of {f}"))
+
+                    proof_context.append((f"step_{i}", f))
 
             self.reporter.log("Waiting for verification tasks...")
             for future, step_num, desc in tasks:

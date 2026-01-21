@@ -9,42 +9,69 @@ math_grammar = r"""
 
     ?relation: term REL_OP term
 
-    ?term: bin_op
-         | simple_term
-         | func_app
-         | subscript
-         | set_comp
+    // Precedence:
+    // 1. set_op (cap, cup, setminus) - highest binding in terms (after func/subscript)
+    // 2. arrow_op (to)
+    // 3. relation (:, =, etc)
+
+    ?term: arrow_term
+
+    ?arrow_term: set_term (ARROW set_term)*
+
+    ?set_term: simple_term_wrapper (SET_OP simple_term_wrapper)*
+
+    ?simple_term_wrapper: bin_op_other
+                        | simple_term
+                        | func_app
+                        | subscript
+                        | set_comp
+                        | tuple
+                        | set_enum
+
+    // Catch-all for other bin ops if any (times, plus, etc) - putting them at set_term level or higher?
+    // Let's put them at set_term level for now, or make a separate level.
+    // For now, let's treat set_op explicitly.
+
+    ?bin_op_other: simple_term_wrapper BIN_OP_OTHER simple_term_wrapper
 
     simple_term: VARIABLE
                 | NUMBER
                 | LATEX_CMD
+                | IDENTIFIER
                 | "(" term ")"
 
+    tuple: "(" term ("," term)+ ")"
+    set_enum: "{" term ("," term)* "}"
+
     func_app: LATEX_CMD "{" term "}" ("{" term "}")*
-            | LATEX_CMD "(" term ("," term)* ")"  // \cmd(x) or \cmd(x,y)
-            | VARIABLE "(" term ("," term)* ")"  // f(x) or f(x,y)
-            | FUNC_NAME "(" term ("," term)* ")" // setminus(A,B)
+            | LATEX_CMD "(" term ("," term)* ")"
+            | VARIABLE "(" term ("," term)* ")"
+            | FUNC_NAME "(" term ("," term)* ")"
 
     subscript: term "_" (simple_term | "{" term "}")
 
-    bin_op: term BIN_OP term
-
     set_comp: "\\class" "{" term "|" text_condition "}"
-
     text_condition: /.+?(?=})/
 
     COLON: ":"
-    TO: /\\to/
-    RIGHTARROW: /\\rightarrow/
+    TO: /\\to/ | /\\rightarrow/
     LEFTTRIGHTARROW: /\\leftrightarrow/
 
     REL_OP: "<" | "=" | "\\leq" | "\\in" | "\\subseteq" | ">" | "\\geq" | "\\neq" | COLON
-    BIN_OP: "\\setminus" | "\\cup" | "\\cap" | "\\times" | "+" | "-" | "\\cdot" | "\\circ" | TO | RIGHTARROW | LEFTTRIGHTARROW
+
+    ARROW: TO | RIGHTARROW | LEFTTRIGHTARROW
+    SET_OP: "\\setminus" | "\\cup" | "\\cap"
+
+    // Other binary ops
+    BIN_OP_OTHER: "\\times" | "+" | "-" | "\\cdot" | "\\circ"
 
     VARIABLE: /[a-zA-Z]/
     FUNC_NAME: /[a-zA-Z]+/
     NUMBER: /\d+/
     LATEX_CMD: "\\" /[a-zA-Z]+/
+    IDENTIFIER: /[a-zA-Z][a-zA-Z0-9_]*/
+
+    RIGHTARROW: /\\rightarrow/
 
     %import common.WS
     %ignore WS
@@ -69,13 +96,34 @@ class MathTransformer(Transformer):
             return Predicate("subset", [left, right])
         elif op_str == ":":
             return Predicate("colon", [left, right])
-        elif op_str == "\\to" or op_str == "\\rightarrow":
-             return Predicate("to", [left, right])
-        elif op_str == "\\leftrightarrow":
-             return Predicate("leftrightarrow", [left, right])
         return Predicate(op_str.replace("\\", ""), [left, right])
 
-    def bin_op(self, items):
+    def arrow_term(self, items):
+        # items: [term, op, term, op, term...]
+        # Right associative? Or Left?
+        # A \to B \to C usually A \to (B \to C).
+        # But here it's likely just binary usage mostly.
+        # Lark handles (ARROW set_term)* as list.
+        # We'll treat it left associative for now or just binary.
+        # If len(items) == 1, return item.
+        node = items[0]
+        for i in range(1, len(items), 2):
+            op = items[i]
+            right = items[i+1]
+            op_str = str(op).replace("\\", "")
+            node = Function(op_str, [node, right])
+        return node
+
+    def set_term(self, items):
+        node = items[0]
+        for i in range(1, len(items), 2):
+            op = items[i]
+            right = items[i+1]
+            op_str = str(op).replace("\\", "")
+            node = Function(op_str, [node, right])
+        return node
+
+    def bin_op_other(self, items):
         left, op, right = items
         op_str = str(op).replace("\\", "")
         return Function(op_str, [left, right])
@@ -86,11 +134,24 @@ class MathTransformer(Transformer):
             if item.type == "VARIABLE":
                 return Variable(item.value)
             elif item.type == "NUMBER":
-                return Constant(item.value)
+                return Constant(f"'{item.value}'")
             elif item.type == "LATEX_CMD":
-                # Strip backslash from LATEX_CMD
                 return Constant(item.value[1:])
+            elif item.type == "IDENTIFIER":
+                return Constant(item.value)
         return item
+
+    def tuple(self, items):
+        if len(items) == 2:
+            return Function("pair", items)
+        return Function("tuple", items)
+
+    def set_enum(self, items):
+        if not items:
+            return Constant("empty_set")
+        if len(items) == 1:
+            return Function("singleton", items)
+        return Function("set_enum", items)
 
     def VARIABLE(self, token):
         return Variable(token.value)
@@ -131,6 +192,9 @@ class MathTransformer(Transformer):
         return Function("subscript", [base, sub])
 
     def term(self, items):
+        return items[0]
+
+    def simple_term_wrapper(self, items):
         return items[0]
 
 parser_instance = Lark(math_grammar, parser="earley", start="start")

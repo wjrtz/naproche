@@ -3,7 +3,14 @@ from lark import Lark, Transformer, Token
 
 class CNLTransformer(Transformer):
     def start(self, items):
-        return items
+        # Flatten the list because sentence might return a list of items
+        flat = []
+        for i in items:
+            if isinstance(i, list):
+                flat.extend(i)
+            else:
+                flat.append(i)
+        return flat
 
     def element(self, items):
         return items[0]
@@ -35,11 +42,14 @@ class CNLTransformer(Transformer):
                 optional_arg = possible_arg
                 content_start_idx = 3
 
-        content = [
-            x
-            for x in items[content_start_idx:-2]
-            if isinstance(x, dict) and "type" in x
-        ]
+        # We need to flatten content here as well if it contains lists (from sentences)
+        raw_content = items[content_start_idx:-2]
+        content = []
+        for x in raw_content:
+            if isinstance(x, list):
+                content.extend([i for i in x if isinstance(i, dict) and "type" in i])
+            elif isinstance(x, dict) and "type" in x:
+                content.append(x)
 
         return {
             "type": "environment",
@@ -55,6 +65,54 @@ class CNLTransformer(Transformer):
         return items[0].value
 
     def sentence(self, items):
+        # Detect directive at start of sentence
+        # Pattern: [ name args... ]
+        if len(items) >= 3 and str(items[0]) == '[':
+            try:
+                # Find matching bracket
+                end_idx = -1
+                depth = 0
+                for k, at in enumerate(items):
+                    s = str(at)
+                    if s == '[':
+                        depth += 1
+                    elif s == ']':
+                        depth -= 1
+                        if depth == 0:
+                            end_idx = k
+                            break
+
+                if end_idx > 1:
+                    # Check if it looks like a directive
+                    # Inside brackets: items[1:end_idx]
+                    # Name is usually first word.
+                    inner = items[1:end_idx]
+                    if inner:
+                         # Construct directive
+                         name_token = inner[0]
+                         args = inner[1:]
+
+                         directive_obj = {
+                             "type": "directive",
+                             "name": str(name_token),
+                             "args": [str(a) for a in args]
+                         }
+
+                         result = [directive_obj]
+
+                         # Check if there is remaining text
+                         rest = items[end_idx+1:]
+
+                         if rest and not (len(rest) == 1 and str(rest[0]) == '.'):
+                             # Check if rest has actual content
+                             has_content = any(str(a) not in ['.'] for a in rest)
+                             if has_content:
+                                 result.append({"type": "sentence", "atoms": rest})
+
+                         return result
+            except Exception:
+                pass
+
         return {"type": "sentence", "atoms": items}
 
     def atom(self, items):
