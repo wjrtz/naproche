@@ -1,0 +1,21 @@
+id = "naproche"
+name = "Naproche"
+version = "0.0.1"
+schema_version = 1
+authors = ["Jules"]
+description = "Naproche support for Zed"
+repository = "https://github.com/naproche/naproche"
+
+[grammars.latex]
+repository = "https://github.com/latex-lsp/latex-grammar"
+commit = "master"
+
+[languages.naproche]
+name = "Naproche"
+grammar = "latex"
+path_suffixes = ["ftl.tex", "ftl"]
+
+[lsp]
+server_name = "naproche-ls"
+command = "python"
+args = ["-m", "naproche.lsp.server"]
