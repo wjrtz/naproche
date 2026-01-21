@@ -34,7 +34,6 @@ RUN curl -L -o eprover.deb http://archive.ubuntu.com/ubuntu/pool/universe/e/epro
 WORKDIR /usr/local/bin
 RUN curl -L https://github.com/vprover/vampire/releases/download/v5.0.0/vampire-Linux-X64.zip -o vampire.zip && \
     unzip vampire.zip && \
-    mv vampire_rel_static_z3_glibc2.29_amd64 vampire && \
     chmod +x vampire && \
     rm vampire.zip
 
