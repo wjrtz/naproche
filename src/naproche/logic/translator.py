@@ -167,6 +167,9 @@ class Translator:
             if a == "(": break
             clean_atoms.append(a)
 
+        if clean_atoms and clean_atoms[-1] == ".":
+            clean_atoms.pop()
+
         # --- Trailing Quantifiers ---
         # "P(x) for all x in A"
         # Check for "for" near the end
@@ -222,10 +225,36 @@ class Translator:
         # 2. Assume/Then/Thus/Therefore/Hence/Indeed/Case <Formula> .
         prefixes = ["Assume", "Then", "Thus", "Therefore", "Hence", "Indeed", "Case"]
         if n >= 2 and clean_atoms[0] in prefixes:
-             # Heuristic: if exactly one math term, use it.
+             # Check if we should strip prefix and treat as "X is Y" or similar
+             # e.g. "Then $x$ is $y$."
+             # We can just remove the prefix and continue matching if it didn't match the simple case
+
+             # But first check heuristic: if exactly one math term and nothing else significant?
+             # existing logic:
              maths = [a for a in clean_atoms[1:] if is_math(a)]
-             if len(maths) == 1:
+             if len(maths) == 1 and len(clean_atoms) == 2:
+                 # "Then $Formula$."
                  return self.parse_math_safe(maths[0])
+
+             # If "Then $x$ is ...", strip "Then" and fall through?
+             # We can modify clean_atoms, but we need to be careful about index dependencies later.
+             # Or we just duplicate the "is" check here or recurse?
+             # Recursion is safest if we treat "Then ..." as wrapper.
+             # But we need to be careful of infinite recursion.
+
+             # Let's try to match "Then <Term> is ..." specifically here or allow fallthrough
+             # If we remove prefix from clean_atoms, we affect `n` and indices.
+             # Let's create a `effective_atoms` list?
+             pass
+
+        # Helper to strip prefix for "Then ..." patterns
+        # We use a loop to allow multiple prefixes? No, usually one.
+        effective_atoms = clean_atoms
+        if clean_atoms and clean_atoms[0] in prefixes:
+            effective_atoms = clean_atoms[1:]
+
+        # Now use effective_atoms for "is" pattern
+        n_eff = len(effective_atoms)
 
         # "Assume the contrary"
         if "Assume" in clean_atoms and "contrary" in clean_atoms:
@@ -256,6 +285,16 @@ class Translator:
                      if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
                          domain = parse_term(rest[of_idx+1])
                          return Predicate("in", [term, domain])
+
+                 elif len(rest) > 1 and "of" in rest:
+                     # "... is a tiling of $M$" -> tiling(term, M)
+                     of_idx = rest.index("of")
+                     if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
+                         noun_phrase = "_".join(rest[:of_idx])
+                         # clean up "a_", "an_" prefix if we didn't remove it correctly?
+                         # (already removed at start of rest)
+                         domain = parse_term(rest[of_idx+1])
+                         return Predicate(noun_phrase, [term, domain])
 
         # 3. Let <Term> be [a/an] <NounPhrase> .
         # e.g. "Let $X$ be a set." -> set(X)
@@ -314,76 +353,61 @@ class Translator:
                      # If it returned Term/Function, maybe it failed to see relation?
                      pass
 
-        # "For every element i of D, lambda_i is a set"
-        if "set" in atoms_str and "For" in atoms_str:
-             # Pattern: For every element $i$ of $D$ $\lambda_{i}$ is a set .
-             var = None
-             domain = None
-             target = None
+        # "For all/every ..." patterns
+        if "For" in clean_atoms and ("all" in clean_atoms or "every" in clean_atoms):
+             # General pattern matching for quantifiers
+             # "For all elements $x$ of $A$ we have $P(x)$"
+             # "For all elements $x$ of $A$ $P(x)$"
 
-             # Extract var/domain
-             if "element" in atoms_str:
-                 try:
-                     idx = atoms_str.index("element")
-                     if idx + 3 < len(atoms_str) and atoms_str[idx+2] == "of":
-                         var = self.parse_math_safe(atoms_str[idx+1])
-                         domain = self.parse_math_safe(atoms_str[idx+3])
-                 except ValueError:
-                     pass
-
-             # Extract target
-             for a in atoms_str:
-                 if is_math(a):
-                     t = self.parse_math_safe(a)
-                     if t and (not var or t.name != var.name) and (not domain or t.name != domain.name):
-                         target = t
-
-             if var and domain and target:
-                 v = Variable(var.name) if isinstance(var, Constant) else var
-                 if isinstance(v, Function): v = Variable(v.name)
-                 return Quantifier("forall", [v], Implies(Predicate("in", [v, domain]), Predicate("set", [target])))
-
-        # "For every element i of D and every element d of Delta(i) we have d in lambda_i"
-        if "For" in clean_atoms and "we" in clean_atoms and "have" in clean_atoms:
-             # Double quantification or Single
              vars_domains = []
-
-             # Scan for "element X of Y" or just "$x$ of $A$"
-             # The existing pattern matching was brittle using atoms_str which might contain "(citation)"
-
-             # Better scan in clean_atoms
              i = 0
              while i < len(clean_atoms):
                  v = None
                  d = None
 
-                 # Pattern: "element $x$ of $Y$"
-                 if clean_atoms[i] == "element":
-                     if i + 3 < len(clean_atoms) and clean_atoms[i+2] == "of":
-                         v = self.parse_math_safe(clean_atoms[i+1])
-                         d = self.parse_math_safe(clean_atoms[i+3])
-
-                 # Pattern: "$x$ of $Y$" (if preceded by elements or implied)
-                 # Wait, just matching specific indices is risky.
+                 # Pattern: "elements $x$ of $Y$" or "element $x$ of $Y$"
+                 if clean_atoms[i] in ["element", "elements"] and i+3 < len(clean_atoms):
+                      if clean_atoms[i+2] == "of" and is_math(clean_atoms[i+1]) and is_math(clean_atoms[i+3]):
+                          v = self.parse_math_safe(clean_atoms[i+1])
+                          d = self.parse_math_safe(clean_atoms[i+3])
 
                  if v and d:
-                     vars_domains.append((v, d))
-
+                      vars_domains.append((v,d))
                  i += 1
 
+             # Try to find the body
              body = None
-             # Check end of sentence for formula
-             # "we have <formula> ."
+
+             # If "we have <Formula>", body is the formula
              if "have" in clean_atoms:
-                 try:
-                     h_idx = clean_atoms.index("have")
-                     if h_idx + 1 < len(clean_atoms):
-                         body = self.parse_math_safe(clean_atoms[h_idx+1])
-                 except ValueError:
-                     pass
+                 h_idx = clean_atoms.index("have")
+                 if h_idx + 1 < len(clean_atoms) and is_math(clean_atoms[h_idx+1]):
+                     body = self.parse_math_safe(clean_atoms[h_idx+1])
+
+             # Or just the last math element if no "we have"
+             if not body:
+                 # Last element if it's math
+                 if is_math(clean_atoms[-1]):
+                      body = self.parse_math_safe(clean_atoms[-1])
+                      if not isinstance(body, Formula):
+                           # Maybe "$H(F(x))$ is an object" -> predicate
+                           pass
+
+             # Special case: "... is a set/object"
+             if not body and "is" in clean_atoms and is_math(clean_atoms[-1]):
+                  # Wait, if last is math, maybe we missed it.
+                  # Look for "is [an] object/set" pattern at end
+                  if clean_atoms[-1] in ["object", "set"]:
+                       noun = clean_atoms[-1]
+                       # Term is before "is"
+                       # Scan backwards from "is"
+                       if "is" in clean_atoms:
+                            is_idx = clean_atoms.index("is")
+                            if is_idx > 0 and is_math(clean_atoms[is_idx-1]):
+                                 term = self.parse_math_safe(clean_atoms[is_idx-1])
+                                 body = Predicate(noun, [term])
 
              if vars_domains and body:
-                 # Construct nested quantifiers
                  result = body
                  for v, d in reversed(vars_domains):
                      v_obj = Variable(v.name) if isinstance(v, Constant) else v
@@ -391,44 +415,22 @@ class Translator:
                      result = Quantifier("forall", [v_obj], Implies(Predicate("in", [v_obj, d]), result))
                  return result
 
-        # "For every ..." generic
-        if "For" in atoms_str and "every" in atoms_str:
-            var = None
-            domain = None
-            body = None
-
-            # scan for "element $i$ of $D$"
-            if "element" in atoms_str:
-                try:
-                    idx = atoms_str.index("element")
-                    # Look ahead for var and domain
-                    # "element $i$ of $D$" -> idx, idx+1($i$), idx+2(of), idx+3($D$)
-                    if idx + 3 < len(atoms_str) and atoms_str[idx+2] == "of":
-                        var = self.parse_math_safe(atoms_str[idx+1])
-                        domain = self.parse_math_safe(atoms_str[idx+3])
-                except ValueError:
-                    pass
-
-            # scan for body formula
-            for i in range(len(atoms_str)-1, -1, -1):
-                if is_math(atoms_str[i]):
-                    f = self.parse_math_safe(atoms_str[i])
-                    if isinstance(f, Formula):
-                        body = f
-                        break
-
-            if var and domain and body:
-                v = Variable(var.name) if isinstance(var, Constant) else var
-                if isinstance(v, Function): v = Variable(v.name)
-                return Quantifier("forall", [v], Implies(Predicate("in", [v, domain]), body))
-
         # 4. <Term> is [a/an] <NounPhrase> .
         # e.g. "$X$ is a set." -> set(X)
-        if n >= 3 and clean_atoms[1] == "is" and is_math(clean_atoms[0]):
-             term = parse_term(clean_atoms[0])
-             rest = clean_atoms[2:]
+        # Using effective_atoms to handle "Then $X$ is ..."
+        if n_eff >= 3 and effective_atoms[1] == "is" and is_math(effective_atoms[0]):
+             term = parse_term(effective_atoms[0])
+             rest = effective_atoms[2:]
              if rest and rest[0] in ["a", "an"]:
                  rest = rest[1:]
+
+             # Handle "not"
+             is_negated = False
+             if rest and rest[0] == "not":
+                 is_negated = True
+                 rest = rest[1:]
+                 if rest and rest[0] in ["a", "an"]:
+                     rest = rest[1:]
 
              if len(rest) == 1:
                  noun = rest[0]
@@ -445,6 +447,20 @@ class Translator:
                  noun = "_".join(rest[:-2])
                  other = parse_term(rest[-1])
                  return Predicate(noun, [term, other])
+             elif len(rest) >= 2 and "with" in rest:
+                 # "... is equinumerous with $Y$"
+                 with_idx = rest.index("with")
+                 if with_idx + 1 < len(rest) and is_math(rest[with_idx+1]):
+                      noun = "_".join(rest[:with_idx])
+                      other = parse_term(rest[with_idx+1])
+                      return Predicate(noun, [term, other])
+             elif len(rest) > 1 and "of" in rest:
+                 # "... is a tiling of $M$"
+                 of_idx = rest.index("of")
+                 if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
+                     noun = "_".join(rest[:of_idx])
+                     other = parse_term(rest[of_idx+1])
+                     return Predicate(noun, [term, other])
 
         # 5. Let <Formula> .
         if clean_atoms[0] == "Let" and n == 2 and is_math(clean_atoms[1]):

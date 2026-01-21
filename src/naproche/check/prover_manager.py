@@ -8,7 +8,7 @@ class ProverManager:
             "vampire": VampireProver(),
             "dummy": DummyProver(),
         }
-        self.active_prover_name = "eprover"
+        self.active_prover_name = "vampire"
 
     def get_prover(self, name: str) -> Optional[Prover]:
         return self._provers.get(name)

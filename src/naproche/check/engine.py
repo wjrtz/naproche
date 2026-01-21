@@ -13,7 +13,15 @@ from naproche.logic.models import (
     Lemma,
 )
 from naproche.logic.translator import Translator
-from naproche.logic.fol import Predicate, Not
+from naproche.logic.fol import (
+    Predicate,
+    Not,
+    Quantifier,
+    Implies,
+    Constant,
+    Variable,
+    substitute,
+)
 from naproche.check.cache import ProverCache, compute_hash_formula, get_formula_string
 from naproche.check.prover_manager import ProverManager
 
@@ -272,6 +280,33 @@ class Engine:
 
     def check_proof(self, proof: Proof):
         proof_context = []
+
+        # Decompose the current goal to setup the proof context
+        current_goal = getattr(self, "current_goal", None)
+        if current_goal:
+            self.reporter.log(f"Decomposing goal: {current_goal}")
+            while True:
+                if isinstance(current_goal, Quantifier) and current_goal.type == "forall":
+                    # Strip forall: substitute variables with constants
+                    # Since we want to prove it for arbitrary X, we pick a constant 'x'.
+                    # We rely on the fact that translator maps Proof variables to lowercase constants.
+                    # e.g. Variable("X") -> Constant("x")
+                    for v in current_goal.vars:
+                        # Assuming Variable names are uppercase, we lowercase them
+                        c = Constant(v.name.lower())
+                        current_goal = substitute(current_goal.body, v.name, c)
+                        # We don't add constant declaration to context explicitly in FOL,
+                        # but logically it exists.
+                elif isinstance(current_goal, Implies):
+                    # Strip implication: assume LHS
+                    proof_context.append((f"goal_assump_{self.counter}", current_goal.left))
+                    self.counter += 1
+                    self.reporter.log(f"  Assumed from goal: {current_goal.left}")
+                    current_goal = current_goal.right
+                else:
+                    break
+            self.reporter.log(f"  New goal focus: {current_goal}")
+
         tasks = []
 
         # Use current active prover
@@ -311,12 +346,15 @@ class Engine:
                         is_assumption = True
 
                     if isinstance(f, Predicate) and f.name == "contrary":
-                        if hasattr(self, "current_goal"):
-                            neg_goal = Not(self.current_goal)
-                            proof_context.append((f"step_{i}", neg_goal))
-                            self.reporter.log(
-                                f"Step {i + 1}: Assumed contrary: {neg_goal}"
-                            )
+                        # If we decomposed the goal, we should use the *current* goal focus
+                        # or the original goal? "contrary" usually means negation of current goal.
+                        goal_to_negate = current_goal if current_goal else self.current_goal
+
+                        neg_goal = Not(goal_to_negate)
+                        proof_context.append((f"step_{i}", neg_goal))
+                        self.reporter.log(
+                            f"Step {i + 1}: Assumed contrary: {neg_goal}"
+                        )
                         continue
 
                     elif isinstance(f, Predicate) and f.name == "false":
