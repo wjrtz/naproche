@@ -31,10 +31,17 @@ from naproche.parser.math_parser import parse_math, MathTransformer
 class Translator:
     def __init__(self):
         self.macros = {}
+        self.synonyms = {}
 
     def add_macro(self, phrase: str, replacement: Term):
         # We store phrase as lowercase for case-insensitive matching
         self.macros[phrase.lower()] = replacement
+
+    def add_synonym(self, singular: str, plural: str):
+        self.synonyms[plural] = singular
+
+    def normalize_noun(self, noun: str) -> str:
+        return self.synonyms.get(noun, noun)
 
     def translate_statement(self, stmt: Statement) -> List[Formula]:
         if isinstance(stmt, Sentence):
@@ -405,6 +412,76 @@ class Translator:
                                     res = Quantifier("forall", [v], Implies(Predicate("in", [v, domain]), body_formula))
                                     return self.expand_colon(res)
 
+                    elif next_word == "some":
+                        # Existential: ... for some <Noun> <Var> [and some <Noun> <Var>]*
+                        quant_part = clean_atoms[f_idx:]
+                        body_part = clean_atoms[:f_idx]
+
+                        body_sentence = Sentence(text=" ".join(body_part), atoms=body_part)
+                        body_formula = self.translate_sentence(body_sentence, as_axiom=as_axiom)
+
+                        if body_formula:
+                             rest = quant_part[1:] # Strip "for"
+
+                             # Split by "and"
+                             segments = []
+                             current_seg = []
+                             for a in rest:
+                                 if a == "and":
+                                     if current_seg: segments.append(current_seg)
+                                     current_seg = []
+                                 else:
+                                     current_seg.append(a)
+                             if current_seg: segments.append(current_seg)
+
+                             valid = True
+                             parsed_vars = [] # (name, pred_func)
+
+                             for seg in segments:
+                                 if not seg or seg[0] != "some":
+                                     valid = False
+                                     break
+
+                                 math_indices = [i for i, x in enumerate(seg) if is_math(x)]
+                                 if not math_indices:
+                                     valid = False
+                                     break
+
+                                 v_idx = math_indices[0]
+                                 v_term = self.parse_math_safe(seg[v_idx])
+                                 if not isinstance(v_term, (Variable, Constant)):
+                                     valid = False
+                                     break
+
+                                 var_name = v_term.name
+
+                                 noun_part = seg[1:v_idx]
+                                 noun = "_".join(noun_part)
+                                 noun = self.normalize_noun(noun)
+
+                                 domain_pred = None
+                                 if noun == "element" and v_idx + 2 < len(seg) and seg[v_idx+1] == "of":
+                                      if is_math(seg[v_idx+2]):
+                                           dom = self.parse_math_safe(seg[v_idx+2])
+                                           domain_pred = lambda v, d=dom: Predicate("in", [v, d])
+                                 else:
+                                      domain_pred = lambda v, n=noun: Predicate(n, [v])
+
+                                 if domain_pred:
+                                     parsed_vars.append((var_name, domain_pred))
+                                 else:
+                                     valid = False
+                                     break
+
+                             if valid and parsed_vars:
+                                 result = body_formula
+                                 for v_name, dom_func in reversed(parsed_vars):
+                                     v = Variable(v_name)
+                                     cond = dom_func(v)
+                                     result = Quantifier("exists", [v], And(cond, result))
+
+                                 return self.expand_colon(result)
+
         n = len(clean_atoms)
         if n == 0:
             return None
@@ -545,6 +622,36 @@ class Translator:
                      result = Quantifier("forall", [v_obj], Implies(Predicate("in", [v_obj, d]), result))
                  return result
 
+        # Pattern: [A|An] <Noun> is ... (Definition)
+        if clean_atoms and clean_atoms[0] in ["A", "An", "a", "an"] and "is" in clean_atoms:
+             try:
+                 is_idx = clean_atoms.index("is")
+                 if is_idx > 1:
+                     noun_words = clean_atoms[1:is_idx]
+                     noun = "_".join(noun_words)
+                     noun = self.normalize_noun(noun)
+
+                     body_atoms = clean_atoms[is_idx+1:]
+
+                     # Find variable in body to define forall quantification
+                     var = None
+                     for a in body_atoms:
+                         if is_math(a):
+                             t = self.parse_math_safe(a)
+                             if isinstance(t, (Variable, Constant)):
+                                 var = Variable(t.name)
+                                 break
+
+                     if var:
+                         # Delegate to "Term is ..."
+                         synthetic_sent = Sentence(text="", atoms=[f"${var.name}$", "is"] + body_atoms)
+                         # Recursive call
+                         rhs = self.translate_sentence(synthetic_sent, as_axiom=as_axiom)
+                         if rhs:
+                             lhs = Predicate(noun, [var])
+                             return Quantifier("forall", [var], Iff(lhs, rhs))
+             except: pass
+
         # Pattern: A is the class of P elements of B
         # "class" is at index 3 (if "the" present) or 2.
         if n_eff >= 5 and "class" in effective_atoms and "elements" in effective_atoms:
@@ -599,6 +706,20 @@ class Translator:
         if n_eff >= 3 and effective_atoms[1] == "is" and is_math(effective_atoms[0]):
              term = parse_term(effective_atoms[0])
              rest = effective_atoms[2:]
+
+             # Handle "such that"
+             cond = None
+             if "such" in rest and "that" in rest:
+                 try:
+                     such_idx = rest.index("such")
+                     if such_idx + 1 < len(rest) and rest[such_idx+1] == "that":
+                         cond_atoms = rest[such_idx+2:]
+                         rest = rest[:such_idx]
+                         # Parse condition
+                         cond_sent = Sentence(text=" ".join(cond_atoms), atoms=cond_atoms)
+                         cond = self.translate_sentence(cond_sent, as_axiom=as_axiom)
+                 except: pass
+
              if rest and rest[0] in ["a", "an"]:
                  rest = rest[1:]
 
@@ -609,9 +730,19 @@ class Translator:
                  if rest and rest[0] in ["a", "an"]:
                      rest = rest[1:]
 
+             # Filter out variable if it repeats subject
+             # e.g. "an integer x" where term is x
+             if rest and is_math(rest[-1]):
+                  last_t = self.parse_math_safe(rest[-1])
+                  if isinstance(last_t, (Variable, Constant)) and isinstance(term, (Variable, Constant)):
+                       if last_t.name == term.name:
+                           rest = rest[:-1]
+
              if len(rest) == 1:
                  noun = rest[0]
+                 noun = self.normalize_noun(noun)
                  pred = Predicate(noun, [term])
+                 if cond: pred = And(pred, cond)
                  if is_negated: return Not(pred)
                  return pred
              elif len(rest) > 1 and "element" in rest and "of" in rest:
@@ -718,7 +849,7 @@ class Translator:
                      res = And(res, f)
                  return res
 
-        if clean_atoms and (clean_atoms[0] == "Define" or (n > 1 and clean_atoms[0] == "Indeed" and clean_atoms[1] == "Define")):
+        if clean_atoms and (clean_atoms[0] in ["Define", "define"] or (n > 1 and clean_atoms[0] == "Indeed" and clean_atoms[1] in ["Define", "define"])):
             defn = None
             for a in clean_atoms:
                 if is_math(a):

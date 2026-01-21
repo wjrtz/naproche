@@ -304,6 +304,19 @@ class Engine:
                     self.reporter.log(f"Timelimit set to {self.timelimit}")
                 except:
                     pass
+            elif stmt.name == "synonym" and stmt.args:
+                arg = stmt.args[0]
+                # Format: word/-s or word/plural
+                if "/" in arg:
+                    parts = arg.split("/")
+                    base = parts[0]
+                    suffix = parts[1]
+                    if suffix.startswith("-"):
+                        plural = base + suffix[1:]
+                    else:
+                        plural = suffix
+                    self.translator.add_synonym(base, plural)
+                    self.reporter.log(f"Added synonym: {plural} -> {base}")
 
         elif (
             isinstance(stmt, Definition)
@@ -435,6 +448,7 @@ class Engine:
                     if stmt.name == "timelimit":
                         try:
                             self.timelimit = float(stmt.args[0])
+                            self.reporter.log(f"Timelimit set to {self.timelimit}")
                         except: pass
                     continue
 
