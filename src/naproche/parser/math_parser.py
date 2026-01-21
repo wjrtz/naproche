@@ -32,11 +32,17 @@ math_grammar = r"""
 
     text_condition: /.+?(?=})/
 
+    COLON: ":"
+    TO: /\\to/
+    RIGHTARROW: /\\rightarrow/
+    LEFTTRIGHTARROW: /\\leftrightarrow/
+
+    REL_OP: "<" | "=" | "\\leq" | "\\in" | "\\subseteq" | ">" | "\\geq" | "\\neq" | COLON | LEFTTRIGHTARROW
+    BIN_OP: "\\setminus" | "\\cup" | "\\cap" | "\\times" | "+" | "-" | "\\cdot" | "\\circ" | TO | RIGHTARROW
+
     VARIABLE: /[a-zA-Z]/
     NUMBER: /\d+/
     LATEX_CMD: "\\" /[a-zA-Z]+/
-    REL_OP: "<" | "=" | "\\leq" | "\\in" | "\\subseteq" | ">" | "\\geq" | "\\neq"
-    BIN_OP: "\\setminus" | "\\cup" | "\\cap" | "\\times" | "+" | "-" | "\\cdot"
 
     %import common.WS
     %ignore WS
@@ -59,6 +65,27 @@ class MathTransformer(Transformer):
             return Predicate("leq", [left, right])
         elif op_str == "\\subseteq":
             return Predicate("subset", [left, right])
+        elif op_str == ":":
+            # f : A -> B is usually parsed as "f" and "A->B" if -> is BIN_OP?
+            # But here ":" is REL_OP.
+            # If A -> B is parsed as Term, then it works.
+            # If -> is REL_OP, then "A -> B" is Formula.
+            # "f : A -> B" is "f REL (A REL B)". But REL_OP is not recursive in `expression` usually?
+            # grammar: relation: term REL_OP term.
+            # So "A -> B" must be a term for "f : (A -> B)" to work.
+            # But I added -> to REL_OP.
+            # So "A -> B" is a relation (Formula).
+            # Then "f : (A -> B)" is "Term REL Formula" ?? Invalid.
+            # -> should be BIN_OP if it creates a type/set?
+            # In legacy, -> is used in mapNotion.
+            # Let's keep -> in REL_OP for now, but maybe it should be BIN_OP for arrow types?
+            # If I make it BIN_OP, "A -> B" is a Function/Term "arrow(A,B)".
+            # Then "f : A -> B" is "f : arrow(A,B)" -> Predicate("colon", [f, arrow(A,B)]).
+            return Predicate("colon", [left, right])
+        elif op_str == "\\to" or op_str == "\\rightarrow":
+             return Predicate("to", [left, right])
+        elif op_str == "\\leftrightarrow":
+             return Predicate("leftrightarrow", [left, right])
         return Predicate(op_str.replace("\\", ""), [left, right])
 
     def bin_op(self, items):
@@ -70,12 +97,16 @@ class MathTransformer(Transformer):
         item = items[0]
         if isinstance(item, Token):
             if item.type == "VARIABLE":
-                return Constant(item.value)
+                return Variable(item.value)
             elif item.type == "NUMBER":
                 return Constant(item.value)
             elif item.type == "LATEX_CMD":
                 return Constant(item.value[1:])
         return item
+
+    def VARIABLE(self, token):
+        # Explicitly handle VARIABLE token if it bypasses simple_term
+        return Variable(token.value)
 
     def func_app(self, items):
         first = items[0]
