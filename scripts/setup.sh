@@ -95,7 +95,8 @@ echo "Setup Complete"
 
 # Export environment variables for provers
 # Use BASH_SOURCE for sourcing in Bash, fallback to $0 for execution
-SRC="${BASH_SOURCE[0]:-$0}"
+# Use ${BASH_SOURCE:-$0} to avoid array syntax [] which breaks POSIX sh
+SRC="${BASH_SOURCE:-$0}"
 REPO_ROOT="$(cd "$(dirname "$SRC")/.." && pwd)"
 export NAPROCHE_VAMPIRE="$REPO_ROOT/provers/vampire"
 export NAPROCHE_EPROVER="$REPO_ROOT/provers/eprover"
