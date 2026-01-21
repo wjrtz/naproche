@@ -22,12 +22,20 @@ fi
 
 # Run sync only if pyproject.toml exists
 if [ -f "pyproject.toml" ]; then
-    # Install into virtual environment (with dev dependencies)
-    uv sync --frozen --extra dev || uv sync --extra dev
+    # Check if src directory exists to decide if we can install the project itself
+    if [ -d "src" ]; then
+        echo "Installing Project and Dependencies..."
+        # Install into virtual environment (with dev dependencies)
+        uv sync --frozen --extra dev || uv sync --extra dev
 
-    # Install into system/current python environment to support global usage
-    # This ensures 'python -m pytest' and other direct invocations work
-    uv pip install --system -e .[dev]
+        # Install into system/current python environment to support global usage
+        # This ensures 'python -m pytest' and other direct invocations work
+        uv pip install --system -e .[dev]
+    else
+        echo "Source directory not found. Installing dependencies only..."
+        # Install dependencies only into virtual environment
+        uv sync --frozen --extra dev --no-install-project || uv sync --extra dev --no-install-project
+    fi
 
     # Force global 'pytest' command to use the project's virtual environment
     # This overrides any existing pytest (e.g. from pipx) that might use a different python

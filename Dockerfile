@@ -6,7 +6,7 @@ WORKDIR /app
 ENV PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 
 # Copy the setup script first to leverage caching if dependencies haven't changed
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock* README.md ./
 COPY scripts/setup.sh ./scripts/setup.sh
 
 # Install sudo and run setup script
