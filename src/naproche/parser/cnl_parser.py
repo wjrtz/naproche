@@ -8,13 +8,34 @@ class CNLTransformer(Transformer):
         return items[0]
 
     def directive(self, items):
-        if len(items) == 1:
-             return {'type': 'directive', 'path': items[0]}
-        path_val = "UNKNOWN"
-        for item in items:
-            if isinstance(item, str):
-                path_val = item
-        return {'type': 'directive', 'path': path_val}
+        return items[0]
+
+    def read_directive(self, items):
+        # items[0] is "read", items[1] is path
+        # But wait, grammar is "[" "read" path "]"
+        # Lark strips terminals if not named? No.
+        # "read" is a terminal string. path is a rule.
+        # Let's check items.
+        # Actually grammar is `read_directive: "[" "read" path "]"`.
+        # Lark might pass the string "read" and the result of path.
+        # But usually string literals are discarded in the tree if not aliased,
+        # UNLESS ! is used or if they are part of the rule.
+        # However, this is a transformer.
+        # Let's look at `path` rule: `path: "\\path{" /[^}]+/ "}"`
+        # `path` transformer returns the value.
+        # So `read_directive` items will likely contain `path` value.
+        # Let's assume the transformer for path returns the string.
+        # `read_directive` probably gets [path_string].
+        # But wait, "[" and "]" and "read" are literals. They might not be in items unless forced.
+        # Let's verify standard lark behavior. Default: literals are filtered out.
+        # So items will contain children that are rules or terminals (if named).
+        # `path` is a rule.
+        return {'type': 'directive', 'action': 'read', 'value': items[0]}
+
+    def prover_directive(self, items):
+        # prover_directive: "[" "prover" word "]"
+        # items[0] should be the result of `word` rule.
+        return {'type': 'directive', 'action': 'prover', 'value': items[0]}
 
     def path(self, items):
         if len(items) >= 1:

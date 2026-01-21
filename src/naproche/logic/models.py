@@ -17,7 +17,8 @@ class Block(Statement):
 
 @dataclass
 class Directive(Statement):
-    path: str
+    action: str
+    value: str
 
 @dataclass
 class Theorem(Block):

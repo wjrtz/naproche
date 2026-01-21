@@ -16,7 +16,7 @@ def convert_item(item: Dict[str, Any]) -> Optional[Statement]:
     type_ = item.get('type')
 
     if type_ == 'directive':
-        return Directive(path=item['path'])
+        return Directive(action=item['action'], value=item['value'])
 
     elif type_ == 'sentence':
         # Reconstruct text from atoms

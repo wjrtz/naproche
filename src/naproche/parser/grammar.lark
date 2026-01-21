@@ -4,7 +4,10 @@ element: directive
        | environment
        | sentence
 
-directive: "[" "read" path "]"
+directive: read_directive | prover_directive
+
+read_directive: "[" "read" path "]"
+prover_directive: "[" "prover" word "]"
 
 path: "\\path{" /[^}]+/ "}"
 

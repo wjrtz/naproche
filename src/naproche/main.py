@@ -10,6 +10,7 @@ from lark.exceptions import LarkError
 def main():
     parser = argparse.ArgumentParser(description="Naproche - Natural Proof Checking")
     parser.add_argument("file", help="The .ftl.tex file to check")
+    parser.add_argument("--benchmark", action="store_true", help="Run all available provers and output benchmark info")
     args = parser.parse_args()
 
     try:
@@ -56,7 +57,10 @@ def main():
         root_path = base_path
 
     print(f"\nVerifying {len(all_statements)} statements...")
-    engine = Engine(base_path=root_path)
+    engine = Engine(base_path=root_path, benchmark_mode=args.benchmark)
+    if args.benchmark:
+        print("Benchmarking mode enabled: [eprover, vampire]")
+
     engine.check(all_statements)
 
     print("\nDone.")
