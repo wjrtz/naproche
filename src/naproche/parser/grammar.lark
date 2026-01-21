@@ -18,7 +18,7 @@ END.2: "\\end"
 env_name: /[a-zA-Z*]+/
 optional_arg: "[" /[^\]]+/ "]"
 
-sentence: atom+ DOT?
+sentence: atom+ DOT
 
 atom: math | word | other_symbol | punctuation
 

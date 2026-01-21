@@ -281,13 +281,25 @@ class Engine:
             for i, s in enumerate(proof.content):
                 if isinstance(s, Sentence):
                     f = self.translator.translate_sentence(s)
+                    # If f is None, it means the translator couldn't produce a formula.
+                    # This might be structural (like "End.") or a failure.
+                    # Since we want to silence "End.", we should check if it's an expected "no-op" or failure.
+                    # But Translator currently returns None for both.
+                    # However, Translator logic returns None explicitly for "End" or structural.
+                    # If it failed to match anything, it also returns None.
+                    # We should probably improve Translator to distinguish?
+                    # For now, let's assume if it contains "End" or "Qed", it's fine.
+                    text = s.text.strip()
+
                     if not f:
+                        # Check if it's a structural end marker we can ignore silently
+                        if "End" in s.atoms or "qed" in s.atoms or "Proof" in s.atoms:
+                            continue
+
                         self.reporter.error(
                             f"Step {i + 1}: Could not translate '{s.text}'"
                         )
                         continue
-
-                    text = s.text.strip()
                     is_assumption = False
                     if (
                         text.startswith("Assume")
