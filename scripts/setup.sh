@@ -14,7 +14,11 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 # Ensure UV is on path
-export PATH="$HOME/.cargo/bin:$PATH"
+if [ -f "$HOME/.local/bin/env" ]; then
+    source "$HOME/.local/bin/env"
+else
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+fi
 
 # Run sync only if pyproject.toml exists
 if [ -f "pyproject.toml" ]; then

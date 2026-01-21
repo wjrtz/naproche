@@ -2,11 +2,6 @@ name: Check Naproche Python Implementation
 
 on:
   pull_request:
-    paths:
-      - 'src/naproche/**/*.py'
-      - 'tests/**/*.py'
-      - 'Dockerfile'
-      - '.github/workflows/check.yml'
 
 jobs:
   lint-and-test:
