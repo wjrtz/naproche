@@ -90,7 +90,7 @@ $R$ is perfectoid iff $R$ is complete and uniform and there
 exists a pseudouniformizer $\varpi$ of $R$ such that    
 $\varpi^{p,R} | p^{[R]}$ in $R^o$ within $R$
 and 
-$$\Phi^{R} : R^o / \varpi \cong R^o / \varpi^{p,R}.$$
+$$\Phi^{R} : R^o / \varpi \cong R^o / \varpi^{p,R}$$ .
 \end{quote}
 
 Such a definition requires a long chain of intermediate definitions
@@ -763,7 +763,7 @@ Case $n = a$. Then $n = 1$ and $n | b$. qed.
 
 Case $a > n$. Then $q \geq b$.
 
-$$n * (q - b) = (n * q) - (n * b) = (a * b) - (n * b) = (a - n) * b.$$
+$$n * (q - b) = (n * q) - (n * b) = (a * b) - (n * b) = (a - n) * b$$ .
 %
 Thus $n$ divides $(a - n) * b$.
 $n$ and $a - n$ are coprime.
@@ -773,7 +773,7 @@ Thus $n$ divides $b$.
 qed.
 
 Hence $n > a$ and $b \geq q$.
-$$(n - a) * q = (n * q) - (a * q) = (a * b) - (a * q) = a * (b - q).$$
+$$(n - a) * q = (n * q) - (a * q) = (a * b) - (a * q) = a * (b - q)$$ .
 $n - a$ divides $a * (b - q)$.
 $n - a$ and $a$ are coprime.
 $a * (b - q) < a * b$.
@@ -888,7 +888,7 @@ Then $\cho{n}{n} = \cho{m}{n} + \cho{m}{m} = 0 + 1 = 1$.
 %
 The next property would normally be expressed as
 %
-$$\cho{n}{i} = \frac{\fac{n}}{\fac{i} * \fac{(n-i)}}.$$
+$$\cho{n}{i} = \frac{\fac{n}}{\fac{i} * \fac{(n-i)}}$$ .
 %
 Since we don't have rational numbers available we
 reformulate the property within the natural numbers.
@@ -896,7 +896,7 @@ reformulate the property within the natural numbers.
 \begin{forthel}
 \begin{lemma} For all natural numbers $n$ and all natural numbers $i$ 
 such that  $0 \leq i \leq n$
-$$\fac{n} = \cho{n}{i} * (\fac{i} * \fac{(n-i)}).$$
+$$\fac{n} = \cho{n}{i} * (\fac{i} * \fac{(n-i)})$$ .
 \end{lemma}
 
 \begin{proof}[by induction on $n$]
@@ -1032,7 +1032,7 @@ Let $a_{i}$ stand for $a(i)$.
 
 \begin{definition}
 Let $\Seq{1}{n} \subseteq \dom(a)$.
-$$\FinSet{a}{1}{n} = \{ a_{i} \mid i \in \Seq{1}{n}\}.$$
+$$\FinSet{a}{1}{n} = \{ a_{i} \mid i \in \Seq{1}{n}\}$$ .
 \end{definition}
 
 
@@ -1064,7 +1064,7 @@ Assume that $\Seq{1}{n+1} \subseteq \dom(a)$.
 
 Then
 $\FinSet{a}{1}{n}$, $\sing{a_{n+1}}$ are sets and
-$$\FinSet{a}{1}{n} \cup \sing{a_{n+1}} = \FinSet{a}{1}{n+1}.$$
+$$\FinSet{a}{1}{n} \cup \sing{a_{n+1}} = \FinSet{a}{1}{n+1}$$ .
 \end{lemma}
 \begin{proof}
 $n+1 \in \dom(a)$.
@@ -1695,7 +1695,7 @@ $$[x]=\{x' \in S \mid x' \equiv_{S} x \ mod \ a\}$$
 %
 and form a quotient
 %
-$$ S/a = \{[x]\mid x \in S\}.$$
+$$ S/a = \{[x]\mid x \in S\}$$ .
 %
 But as we shall not continue working with quotients in this article
 we will only consider congruences mod $a$. To talk about 
@@ -1917,7 +1917,7 @@ $(x^{m,R} \cdot^{R} x^{k,R}) \cdot^{R} x = $
 
 $x^{m + k,R} \cdot^{R} x = $
 
-$x^{(m + k)+1,R} = x^{m+n,R}.$
+$x^{(m + k)+1,R} = x^{m+n,R}$ .
 \end{proof}
 
 \begin{lemma} Let $x \in R$ and $m$ be a natural number.
@@ -1948,7 +1948,7 @@ CASE $n = 0$. Trivial.
 Take $m$ such that $n = m + 1$.
 $(x \cdot^{R} y)^{n,R} =
 (x \cdot^{R} y)^{m+1,R} =
-(x \cdot^{R} y)^{m,R} \cdot^{R} (x \cdot^{R} y).$
+(x \cdot^{R} y)^{m,R} \cdot^{R} (x \cdot^{R} y)$ .
 
 $(x^{m,R} \cdot^{R} y^{m,R}) \cdot^{R} (x \cdot^{R} y) =
 (x^{m,R} \cdot^{R} x) \cdot^{R} ( y^{m,R} \cdot^{R} y)$.
@@ -2082,7 +2082,7 @@ $p^{[R]}$ divides $\cho{p}{i}^{[R]}$ in $S$ within $R$.
 
 We shall deal with "partial" binomial sums of the form
 %
-$$\sum_{i=0}^m {n \choose i} x^{n-i} y^{i}.$$
+$$\sum_{i=0}^m {n \choose i} x^{n-i} y^{i}$$ .
 %
 We view the summation as a first-order function symbol in the 
 arguments $m,n,x,y,R$ and specify the function axiomatically.
@@ -2097,7 +2097,7 @@ $$\binsum{k}{m}{x}{y}{R}$$ is an element of $R$.
 
 \begin{axiom} Let $m$ be a natural number and $x,y \in R$.
 Then 
-$$\binsum{0}{m}{x}{y}{R} = x^{m,R}.$$
+$$\binsum{0}{m}{x}{y}{R} = x^{m,R}$$ .
 \end{axiom}
 
 \begin{axiom}[Summation recursion]\label{Summation_recursion}
@@ -2120,7 +2120,7 @@ Let $x,y \in R$. For all natural numbers $m$ if $m \leq n$ then
 $(\binsum{m}{n}{x}{y}{R}) \cdot^{R} (x +^{R} y) =$
 
 $(\binsum{m}{n+1}{x}{y}{R}) +^{R} 
-(\cho{n}{m}^{[R]} \cdot^{R} (x^{n-m,R} \cdot^{R} y^{m+1,R})).$
+(\cho{n}{m}^{[R]} \cdot^{R} (x^{n-m,R} \cdot^{R} y^{m+1,R}))$ .
 \end{lemma}
 
 \begin{proof}[by induction]
@@ -2198,7 +2198,7 @@ $ +^{R}
 ((\cho{n}{m}^{[R]} \cdot^{R} (x^{n - m,R} \cdot^{R} y^{m,R})) \cdot^{R} x)))
    +^{R} (\cho{n}{m}^{[R]} \cdot^{R} (x^{n - m,R} \cdot^{R} y^{m+1,R})) $.
 
-$x^{n-m',R} \cdot^{R} y^{m'+1,R} = x^{(n+1)-m,R} \cdot^{R} y^{m,R}.$
+$x^{n-m',R} \cdot^{R} y^{m'+1,R} = x^{(n+1)-m,R} \cdot^{R} y^{m,R}$ .
 
 $\cho{n}{m'}^{[R]} \cdot^{R} (x^{n-m',R} \cdot^{R} y^{m'+1,R}) = 
 \cho{n}{m'}^{[R]} \cdot^{R} (x^{(n+1)-m,R} \cdot^{R} y^{m,R})$.
@@ -2221,7 +2221,7 @@ $(\cho{n}{m}^{[R]} \cdot^{R} (x^{n - m,R} \cdot^{R} y^{m,R})) \cdot^{R} x = $
 
 $\cho{n}{m}^{[R]} \cdot^{R} (x^{(n+1) - m,R} \cdot^{R} y^{m,R})$.
 
-$x^{n-m',R} \cdot^{R} y^{m'+1,R} = x^{(n+1)-m,R} \cdot^{R} y^{m,R}.$
+$x^{n-m',R} \cdot^{R} y^{m'+1,R} = x^{(n+1)-m,R} \cdot^{R} y^{m,R}$ .
 
 $ ((\binsum{m'}{n+1}{x}{y}{R}) +^{R} ((\cho{n}{m'}^{[R]} \cdot^{R} (x^{n-m',R} \cdot^{R} y^{m'+1,R})) $
 $ +^{R} 
@@ -2267,7 +2267,7 @@ This leads to the standard binomial formula:
 \begin{forthel}
 \begin{theorem}
 Let $x,y \in R$. For all natural numbers $n$ we have
-$$(x +^{R} y)^{n,R} = \binsum{n}{n}{x}{y}{R}.$$
+$$(x +^{R} y)^{n,R} = \binsum{n}{n}{x}{y}{R}$$ .
 \end{theorem}
 \begin{proof}[by induction]
 Let $n$ be a natural number.
@@ -2284,7 +2284,7 @@ $\binsum{n'}{n'}{x}{y}{R} \cdot^{R} (x +^{R} y) =$
 
 $(\binsum{n'}{n'+1}{x}{y}{R}) +^{R} (\cho{n'}{n'}^{[R]} \cdot^{R} (x^{n'-n',R} \cdot^{R} y^{n'+1,R})) =$
 
-$(\binsum{n-1}{n}{x}{y}{R}) +^{R} (\cho{n}{n}^{[R]} \cdot^{R} (x^{n-n,R} \cdot^{R} y^{n,R})).$
+$(\binsum{n-1}{n}{x}{y}{R}) +^{R} (\cho{n}{n}^{[R]} \cdot^{R} (x^{n-n,R} \cdot^{R} y^{n,R}))$ .
 
 [timelimit 8]
 
@@ -3613,7 +3613,7 @@ $R$ is perfectoid iff $R$ is complete and uniform and there
 exists a pseudouniformizer $\varpi$ of $R$ such that    
 $\varpi^{p,R} | p^{[R]}$ in $R^o$ within $R$
 and 
-$$\Phi^{R} : R^o / \varpi \cong R^o / \varpi^{p,R}.$$
+$$\Phi^{R} : R^o / \varpi \cong R^o / \varpi^{p,R}$$ .
 \end{definition}
 
 \end{forthel}

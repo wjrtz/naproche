@@ -101,7 +101,7 @@ The first relation we want to introduce is the capital accumulation rule. It say
 \begin{forthel}
 
 \begin{axiom}[capital accumulation]
-    $$\derivin{K}(t) = (s \cdot Y(t)) - (\delta \cdot K(t)).$$
+    $$\derivin{K}(t) = (s \cdot Y(t)) - (\delta \cdot K(t))$$ .
 \end{axiom}
 
 \end{forthel}
@@ -120,7 +120,7 @@ Next we introduce capital per efficiency unit labor $k_t = \frac{K_t}{A_t \cdot 
 Let $k$ denote a capital per efficiency unit labor.
 
 \begin{axiom}[def k]
-    $k = \fdiv{K}{\fmult{A}{L}}.$
+    $k = \fdiv{K}{\fmult{A}{L}}$ .
 \end{axiom}
 \begin{lemma}[lemma k]
     $k(t) = \frac{K(t)}{A(t) \cdot L(t)}$.
@@ -160,7 +160,7 @@ Let $f$ denote a production function.
 \end{forthel}
 
 In our definition of the production function, we already assume constant returns to scale implicitly:
-$$(\lambda A_t L_t) f\left(\frac{\lambda K_t}{\lambda A_t L_t}\right)= \lambda A_t L_t f(k_t) = \lambda Y_t.$$
+$$(\lambda A_t L_t) f\left(\frac{\lambda K_t}{\lambda A_t L_t}\right)= \lambda A_t L_t f(k_t) = \lambda Y_t$$ .
 In general constant returns to scale seems to be reasonable condition to assume. Two identical bakeries should probably produce basically twice as much as a single of those bakeries would produce. Also, on a country-wide level: if one country is twice as large as another and both are otherwise identical, the larger one should probably have an economy about twice as large. What reasonably holds in a large economy does not necessarily need to be the case on a firm level. When you are a car manufacturer for example the size of your addressed market is crucial. When you are very large, then investing in a huge and highly automated factory makes a lot of sense. However, when you are just producing a couple of hundred cars per year, the upfront cost of the large machinery cannot be justified by the slight efficiency improvements. Therefore, a factory that produces 10,000 cars instead of 100 is probably not needing 100 times the inputs of the latter but fewer, because the processes the larger factory allows are not viable in the smaller one.\\
 
 Next we discuss the maximization problem of the firm:
@@ -179,7 +179,7 @@ Let $r$ denote an interest rate.
 \end{forthel}
 
 The typical formulation of the maximization problem of a firm is 
-$$\max_{K_t, L_t}\ F(K_t, A_tL_t) - r_tK_t - w_tL_t.$$
+$$\max_{K_t, L_t}\ F(K_t, A_tL_t) - r_tK_t - w_tL_t$$ .
 This is total output minus the costs consisting of the capital ($r_tK_t$) and labor ($w_tL_t$) costs.
 The firm chooses its capital and labor demand such that it maximizes profits. Here we will just focus on maximizing profits by capital
 because Kaldor's facts, as we stated them above, only demand that of us. With $\Pi$ we denote the profits depending upon the capital stock.
@@ -238,7 +238,7 @@ Utilizing the Inada-conditions, we will show that there exists a profit maximizi
 
 \begin{proposition}[derivative profit function]
     For any real number $x$
-    $$\deriv{\Pi_{A, L, f, r, w, t}}(x) = \derivin{f}\left(\frac{x}{A(t) \cdot L(t)}\right) - r(t).$$
+    $$\deriv{\Pi_{A, L, f, r, w, t}}(x) = \derivin{f}\left(\frac{x}{A(t) \cdot L(t)}\right) - r(t)$$ .
 \end{proposition}
 \begin{proof}
     Let $x$ be a real number. $f \circ \flin{1/(A(t) \cdot L(t))}{0}$ is a real map.
@@ -435,7 +435,7 @@ In the proposition derivative k, because we want to use $K$, $L$, and $A$ during
   
 \begin{proposition}[derivative k]
     Let $Y$ be an output level and $K$ be a capital stock and $L$ be a labor amount and $A$ be an efficiency level.
-    $k$ is differentiable in $t$ and $$\derivin{k}(t) = (s \cdot f(k(t))) - ((\delta + (gA + gL)) \cdot k(t)).$$
+    $k$ is differentiable in $t$ and $$\derivin{k}(t) = (s \cdot f(k(t))) - ((\delta + (gA + gL)) \cdot k(t))$$ .
 \end{proposition}
 \begin{proof}$
     (\fmult{A}{L}(t))^{2},A(t) \cdot L(t)$ are nonzero.
@@ -796,7 +796,7 @@ We will make a stronger claim in this model: Even the aggregate volume of produc
 
 \begin{proposition}[G1]
     Let $A$ be an efficiency level and $f$ be a production function and $k$ be a capital per efficiency unit labor.
-    $$\hat{\fdiv{Y}{L}}(t) = gA.$$
+    $$\hat{\fdiv{Y}{L}}(t) = gA$$ .
 \end{proposition}
 \begin{proof}
     (A) $\fdiv{Y}{L} = \fmult{A}{(f \circ k)}$. Proof. 
@@ -869,7 +869,7 @@ For G2, we see that the capital stock grows in the steady-state with technologic
 \begin{proposition}[G2]
     Let $Y$ be an output level and $\delta$ be a depreciation rate and $s$ be a savings rate and $f$ be a production function.
     Let $A$ be an efficiency level and $L$ be a labor amount and $k$ be a capital per efficiency unit labor.
-    $$\hat{K}(t) = gA + gL.$$
+    $$\hat{K}(t) = gA + gL$$ .
 \end{proposition}
 \begin{proof} 
     $k(t)$ is a real number.
@@ -935,7 +935,7 @@ Profit on capital we interpret as the real interest rate. The real interest rate
     Let $Y$ be an output level and $K$ be a capital stock and $L$ be a labor amount and $A$ be an efficiency level.
     Let $s$ be a savings rate and $f$ be a production function and $\delta$ be a depreciation rate and $gA$ be an efficiency growth rate and 
     $gL$ be a labor growth rate and $w$ be a wage and $k$ be a capital per efficiency unit labor.
-    $$r(t) = \derivin{f}(\kappa).$$
+    $$r(t) = \derivin{f}(\kappa)$$ .
 \end{proposition}
 \begin{proof}
     Take $\Pi = \Pi_{A, L, f, r, w, t}$. [prover vampire] 
@@ -1015,7 +1015,7 @@ Given that we do steady-state analysis, G4 is trivially the case.
     $gL$ be a labor growth rate.
     Let $A$ be an efficiency level and $L$ be a labor amount and $k$ be a capital per efficiency unit labor.
     $f(\kappa)$ is nonzero and
-    $$\frac{K(t)}{Y(t)} = \frac{\kappa}{f(\kappa)}.$$
+    $$\frac{K(t)}{Y(t)} = \frac{\kappa}{f(\kappa)}$$ .
 \end{proposition}
 \begin{proof} 
     (0) $Y(t) = (A(t) \cdot L(t)) \cdot f(k(t))$ (by lemma Y).
@@ -1050,7 +1050,7 @@ G5 is a corollary of G3 and G4.
     $gL$ be a labor growth rate and $w$ be a wage.
     Let $A$ be an efficiency level and $L$ be a labor amount and $k$ be a capital per efficiency unit labor.
     $f(\kappa)$ is nonzero and
-    $$\frac{r(t) \cdot K(t)}{Y(t)} = \frac{\derivin{f}(\kappa) \cdot \kappa}{f(\kappa)}.$$
+    $$\frac{r(t) \cdot K(t)}{Y(t)} = \frac{\derivin{f}(\kappa) \cdot \kappa}{f(\kappa)}$$ .
 \end{proposition}
 \begin{proof}
     $f(\kappa)$ is nonzero (by lemma G4).
@@ -1078,7 +1078,7 @@ G6 can be analyzed in the Solow model as being off steady state. A country is in
 
 
 An alternative to the way we introduced a production function with the Inada conditions, we also could have defined 
-$$f = ext|_{\fpot{a}}.$$
+$$f = ext|_{\fpot{a}}$$ .
 This is the Cobb-Douglas production function
 $$F(K_t,A_tL_t) = K_t^\alpha(A_tL_t)^{1 - \alpha},$$
 which is equivalent to 

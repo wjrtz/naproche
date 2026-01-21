@@ -291,12 +291,16 @@ class Engine:
                     # Since we want to prove it for arbitrary X, we pick a constant 'x'.
                     # We rely on the fact that translator maps Proof variables to lowercase constants.
                     # e.g. Variable("X") -> Constant("x")
+
+                    term = current_goal.body
                     for v in current_goal.vars:
                         # Assuming Variable names are uppercase, we lowercase them
                         c = Constant(v.name.lower())
-                        current_goal = substitute(current_goal.body, v.name, c)
-                        # We don't add constant declaration to context explicitly in FOL,
-                        # but logically it exists.
+                        term = substitute(term, v.name, c)
+                    current_goal = term
+
+                    # We don't add constant declaration to context explicitly in FOL,
+                    # but logically it exists.
                 elif isinstance(current_goal, Implies):
                     # Strip implication: assume LHS
                     proof_context.append((f"goal_assump_{self.counter}", current_goal.left))
@@ -306,6 +310,8 @@ class Engine:
                 else:
                     break
             self.reporter.log(f"  New goal focus: {current_goal}")
+        else:
+            self.reporter.log("Warning: No current goal to prove (Proof block without Theorem?).")
 
         tasks = []
 
@@ -348,13 +354,15 @@ class Engine:
                     if isinstance(f, Predicate) and f.name == "contrary":
                         # If we decomposed the goal, we should use the *current* goal focus
                         # or the original goal? "contrary" usually means negation of current goal.
-                        goal_to_negate = current_goal if current_goal else self.current_goal
-
-                        neg_goal = Not(goal_to_negate)
-                        proof_context.append((f"step_{i}", neg_goal))
-                        self.reporter.log(
-                            f"Step {i + 1}: Assumed contrary: {neg_goal}"
-                        )
+                        if current_goal:
+                            goal_to_negate = current_goal
+                            neg_goal = Not(goal_to_negate)
+                            proof_context.append((f"step_{i}", neg_goal))
+                            self.reporter.log(
+                                f"Step {i + 1}: Assumed contrary: {neg_goal}"
+                            )
+                        else:
+                            self.reporter.error("Cannot assume contrary: No current goal.")
                         continue
 
                     elif isinstance(f, Predicate) and f.name == "false":
