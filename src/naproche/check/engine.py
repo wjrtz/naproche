@@ -14,7 +14,7 @@ from naproche.logic.models import (
 )
 from naproche.logic.translator import Translator
 from naproche.logic.fol import Predicate, Not
-from naproche.check.cache import ProverCache, compute_hash
+from naproche.check.cache import ProverCache, compute_hash_formula, get_formula_string
 from naproche.check.prover_manager import ProverManager
 
 # We need to import the parser components to handle included files
@@ -34,13 +34,31 @@ def verify_task(
     prover_manager=None,
 ):
     all_axioms = axioms_repr + context_repr + proof_context_repr
-    h = compute_hash(all_axioms, ("goal", goal_repr))
+
+    # Precompute hashes
+    # We need map from name to hash to identify used axioms
+    axiom_hashes = {}
+    for name, f in all_axioms:
+        axiom_hashes[name] = compute_hash_formula(f)
+
+    goal_name, goal_f = ("goal", goal_repr)
+    goal_hash = compute_hash_formula(goal_f)
+
+    # Context hash for failure caching (all axioms)
+    # We use a simple concatenation of sorted hashes for stability
+    sorted_hashes = sorted(axiom_hashes.values())
+    context_hash_str = "|".join(sorted_hashes)
+
+    # We also include goal in context hash for failure matching just in case
+    full_context_hash = f"{context_hash_str}|GOAL:{goal_hash}"
+
+    available_hashes_set = set(axiom_hashes.values())
 
     if use_cache and not benchmark_mode:
         cache = ProverCache()
-        cached = cache.get(h)
-        if cached is not None:
-            return (True, cached, h, {})
+        cached_result = cache.get_proof(goal_hash, available_hashes_set, full_context_hash)
+        if cached_result is not None:
+            return (True, cached_result, goal_hash, {})
 
     if benchmark_mode and prover_manager:
         results = {}
@@ -48,24 +66,41 @@ def verify_task(
 
         all_provers = prover_manager.get_all_provers()
 
-        # In benchmark mode, we run all provers
-        # We could parallelize this, but for now lets run sequentially or use small timeouts
-        # The verify_task is already running in a thread from check_proof
-
         for p in all_provers:
             start_time = time.time()
-            res = p.prove(all_axioms, ("goal", goal_repr), timeout=1.0) # Short timeout for benchmark? Or standard?
+            res = p.prove(all_axioms, (goal_name, goal_f), timeout=1.0)
             end_time = time.time()
             duration = end_time - start_time
-            results[p.name] = {"success": res, "time": duration}
-            if res:
+            results[p.name] = {"success": res.success, "time": duration}
+            if res.success:
                 success = True
 
-        return (False, success, h, results)
+        return (False, success, goal_hash, results)
     else:
         # Standard mode
-        result = prover_instance.prove(all_axioms, ("goal", goal_repr), timeout=5.0)
-        return (False, result, h, {})
+        result = prover_instance.prove(all_axioms, (goal_name, goal_f), timeout=5.0)
+
+        if use_cache and not benchmark_mode:
+            cache = ProverCache()
+            if result.success:
+                if result.used_axioms is None:
+                     # Unknown dependencies -> conservative caching (like old behavior)
+                     # We store all current available hashes as dependencies.
+                     # This effectively means if ANY axiom changes, this proof is invalid.
+                     used_hashes = list(available_hashes_set)
+                else:
+                    # Map names to hashes
+                    used_hashes = []
+                    for name in result.used_axioms:
+                        if name in axiom_hashes:
+                            used_hashes.append(axiom_hashes[name])
+
+                cache.save_proof(goal_hash, used_hashes, True, full_context_hash)
+            else:
+                # Save failure with full context
+                cache.save_proof(goal_hash, [], False, full_context_hash)
+
+        return (False, result.success, goal_hash, {})
 
 
 class Reporter:
@@ -232,7 +267,7 @@ class Engine:
             if is_included:
                 pass  # Skip proofs of included files
             else:
-                self.reporter.log("Checking Proof (Parallel)...")
+                self.reporter.log(f"Checking Proof (Parallel)... with {len(stmt.content)} steps")
                 self.check_proof(stmt)
 
     def check_proof(self, proof: Proof):
@@ -320,9 +355,7 @@ class Engine:
                         is_cached, success, h = res
                         benchmark_info = {}
 
-                    if not is_cached and self.current_cache_enabled and not self.benchmark_mode:
-                        if self.cache:
-                            self.cache.set(h, success)
+                    # Note: We don't need to save to cache here anymore, verify_task does it
 
                     source = "(Cached)" if is_cached else f"({current_prover.name})"
                     if self.benchmark_mode:

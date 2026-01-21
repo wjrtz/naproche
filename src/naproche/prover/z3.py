@@ -2,8 +2,8 @@ import os
 import subprocess
 import tempfile
 import sys
-from typing import List, Tuple
-from naproche.prover.base import Prover
+from typing import List, Tuple, Optional
+from naproche.prover.base import Prover, ProverResult
 from naproche.prover.tptp import formulas_to_tptp_file
 from naproche.logic.fol import Formula
 
@@ -17,7 +17,7 @@ class Z3Prover(Prover):
         axioms: List[Tuple[str, Formula]],
         conjecture: Tuple[str, Formula],
         timeout: float
-    ) -> bool:
+    ) -> ProverResult:
         tptp_content = formulas_to_tptp_file(axioms, conjecture)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".p", delete=False) as tmp:
@@ -38,24 +38,25 @@ class Z3Prover(Prover):
 
             # Z3 accepts TPTP via file input directly if it detects it or with -tptp
             # Usually z3 -tptp <file> works
+            # We don't have easy unsat core extraction from CLI TPTP mode in Z3 AFAIK without specific options
+            # So we will return success but unknown dependencies (None)
             cmd = [z3_path, "-tptp", f"-T:{int(timeout)}", tmp_path]
 
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True)
             except FileNotFoundError:
-                return False
+                return ProverResult(success=False, output="Z3 executable not found")
 
             # Z3 TPTP output usually contains "szs status Theorem" or "unsat"
             # It might depend on version.
             stdout_lower = result.stdout.lower()
             if "szs status theorem" in stdout_lower:
-                return True
-            if "unsat" in stdout_lower and "szs" not in stdout_lower:
-                # Sometimes raw Z3 output is just 'unsat' which means theorem is valid (negation is unsat)
-                # But we should be careful. Using -tptp usually gives SZS.
-                pass
+                return ProverResult(success=True, used_axioms=None, output=result.stdout)
 
-            return False
+            # If Z3 just outputs unsat, we might trust it?
+            # But let's stick to SZS if possible for safety.
+
+            return ProverResult(success=False, output=result.stdout)
 
         finally:
             if os.path.exists(tmp_path):

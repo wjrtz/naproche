@@ -33,12 +33,12 @@ class TestIntegration(unittest.TestCase):
 
         # Verify cache has entries via SQL
         cursor = engine.cache.conn.cursor()
-        cursor.execute("SELECT count(*) FROM cache WHERE result=1")
+        cursor.execute("SELECT count(*) FROM proofs WHERE result=1")
         _count = cursor.fetchone()[0]
         # self.assertTrue(count > 0, "Expected at least one successful verification")
         # Since eprover might be missing, we can't guarantee success=True.
         # But we can check that cache is not empty (results are stored).
-        cursor.execute("SELECT count(*) FROM cache")
+        cursor.execute("SELECT count(*) FROM proofs")
         total = cursor.fetchone()[0]
         self.assertTrue(total > 0)
 

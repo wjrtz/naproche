@@ -64,7 +64,7 @@ class TestIntegration(unittest.TestCase):
         # run_prover returns False if crash.
         # So cache should be populated with False.
         cursor = engine.cache.conn.cursor()
-        cursor.execute("SELECT count(*) FROM cache")
+        cursor.execute("SELECT count(*) FROM proofs")
         total = cursor.fetchone()[0]
         self.assertTrue(total > 0)
 
