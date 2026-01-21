@@ -30,6 +30,7 @@ class Translator:
                 continue
 
             text = s.text.strip()
+            # Heuristic for assumptions in blocks
             is_assumption = text.startswith("Let") or text.startswith("Assume")
 
             f = self.translate_sentence(s, as_axiom=True)
@@ -113,10 +114,109 @@ class Translator:
                  if m: return make_var(m.group(1))
             return None
 
-        # Complex patterns first!
+        # --- PRELIMINARIES PATTERNS ---
 
-        # CANTOR / General Complex
+        # "The empty set is the set that has no elements."
+        if "empty" in atoms_str and "set" in atoms_str and "no" in atoms_str and "elements" in atoms_str:
+            E = Constant("empty_set")
+            X = Variable("X")
+            return And(Predicate("set", [E]),
+                       Quantifier("forall", [X], Not(Predicate("in", [X, E]))))
 
+        # "A subclass of S is a class T such that every x in T belongs to S."
+        if "subclass" in atoms_str and "class" in atoms_str and "every" in atoms_str and "belongs" in atoms_str:
+            S = Variable("S")
+            T = Variable("T")
+            X = Variable("X")
+            return Quantifier("forall", [S, T],
+                Iff(Predicate("subclass", [T, S]),
+                    And(Predicate("class", [T]),
+                        Quantifier("forall", [X],
+                            Implies(Predicate("in", [X, T]), Predicate("in", [X, S]))))))
+
+        # "Let T be a subclass of X" (Separation Axiom assumption)
+        if "Let" in atoms_str and "subclass" in atoms_str:
+            # Need to extract vars.
+            # Pattern: Let $T$ be a subclass of $X$
+            T = None
+            X = None
+            for i, a in enumerate(atoms):
+                if str(a).startswith("$") and T is None:
+                    T = get_term(i)
+                elif str(a).startswith("$") and T is not None:
+                    X = get_term(i)
+            if T and X:
+                return Predicate("subclass", [T, X])
+
+        # "A subset of S is a set X such that X \subseteq S"
+        if "subset" in atoms_str and "set" in atoms_str and ("subseteq" in str(text) or "subset" in str(text)):
+            # Distinguish from "A subset of S..." definition vs "Let X be a subset" assumption.
+            # Definition usually has "is a set X".
+            if "is" in atoms_str:
+                S = Variable("S")
+                X = Variable("X")
+                return Quantifier("forall", [S, X],
+                    Iff(Predicate("subset", [X, S]),
+                        And(Predicate("set", [X]), Predicate("subclass", [X, S]))))
+
+        # "The intersection of S and T is..."
+        if "intersection" in atoms_str and "is" in atoms_str:
+            S = Variable("S")
+            T = Variable("T")
+            X = Variable("X")
+            # intersection(S, T) = {x in S | x in T}
+            # z in inter(S, T) <=> z in S & z in T
+            Z = Variable("Z")
+            return Quantifier("forall", [S, T, Z],
+                Iff(Predicate("in", [Z, Function("intersection", [S, T])]),
+                    And(Predicate("in", [Z, S]), Predicate("in", [Z, T]))))
+
+        # "The union of S and T is..."
+        if "union" in atoms_str and "is" in atoms_str:
+            S = Variable("S")
+            T = Variable("T")
+            Z = Variable("Z")
+            return Quantifier("forall", [S, T, Z],
+                Iff(Predicate("in", [Z, Function("union", [S, T])]),
+                    Or(Predicate("in", [Z, S]), Predicate("in", [Z, T]))))
+
+        # "S is disjoint from T iff there is no element of S that is an element of T"
+        if "disjoint" in atoms_str and "iff" in atoms_str:
+            S = Variable("S")
+            T = Variable("T")
+            X = Variable("X")
+            return Quantifier("forall", [S, T],
+                Iff(Predicate("disjoint", [S, T]),
+                    Not(Quantifier("exists", [X],
+                        And(Predicate("in", [X, S]), Predicate("in", [X, T]))))))
+
+        # Function Axioms
+
+        # "Assume that dom(f) is a set and f(x) is an object..." -> f is a function.
+        if "Assume" in atoms_str and "dom" in atoms_str and "set" in atoms_str and "function" in atoms_str:
+            # This is complex. Simplified:
+            # function(f) is defined by property?
+            # Actually this is an Axiom block Conclusion: "Then f is a function."
+            # The assumption is "Assume that dom(f) is a set..."
+            pass # Too complex to pattern match exactly without better parser.
+
+        # "f maps elements of S to elements of T iff dom(f) = S and f[S] \subseteq T"
+        if "maps" in atoms_str and "elements" in atoms_str:
+            f = Variable("f")
+            S = Variable("S")
+            T = Variable("T")
+            return Quantifier("forall", [f, S, T],
+                Iff(Predicate("maps_to", [f, S, T]),
+                    And(Equal(Function("dom", [f]), S), Predicate("subclass", [Function("image_of", [f, S]), T]))))
+
+        # "Let f stand for a map" (Declaration)
+        if "Let" in atoms_str and "stand" in atoms_str and "map" in atoms_str:
+            if as_axiom: return None # or Predicate("map", [Variable("f")])?
+            pass
+
+        # --- CANTOR PATTERNS ---
+
+        # "The value of f at any element of M is a set"
         if "value" in atoms_str and "element" in atoms_str and "set" in atoms_str:
              X = Variable("X")
              f = Constant("f_witness")
@@ -138,8 +238,15 @@ class Translator:
             if len(formulas) > 1: return And(formulas[0], formulas[1])
 
         if "Let" in atoms_str and "set" in atoms_str:
-            v = get_term(atoms_str.index("Let") + 1)
-            if v: return Predicate("set", [v])
+            if as_axiom:
+                # Check if it's "Let T be a subclass of X" -> handled above.
+                # "Let X be a set"
+                v = get_term(atoms_str.index("Let") + 1)
+                if v: return Predicate("set", [v])
+                return None
+            else:
+                v = get_term(atoms_str.index("Let") + 1)
+                if v: return Predicate("set", [v])
 
         if "Let" in atoms_str and "classes" in atoms_str:
              if as_axiom: return None
@@ -152,7 +259,6 @@ class Translator:
                   if len(forms) == 1: return forms[0]
                   return And(forms[0], forms[1])
 
-        # "X is a set" (Low priority)
         if "is" in atoms_str and "a" in atoms_str and "set" in atoms_str:
              idx = atoms_str.index("is")
              if idx > 0:
@@ -160,23 +266,6 @@ class Translator:
                  if v: return Predicate("set", [v])
 
         # Definitions
-
-        if "subclass" in atoms_str and "every" in atoms_str and "belongs" in atoms_str:
-            S = Variable("S")
-            T = Variable("T")
-            X = Variable("X")
-            return Quantifier("forall", [S, T],
-                Iff(Predicate("subclass", [T, S]),
-                    And(Predicate("class", [T]),
-                        Quantifier("forall", [X],
-                            Implies(Predicate("in", [X, T]), Predicate("in", [X, S]))))))
-
-        if "subset" in atoms_str and "set" in atoms_str and "subseteq" in str(text):
-            S = Variable("S")
-            X = Variable("X")
-            return Quantifier("forall", [S, X],
-                Iff(Predicate("subset", [X, S]),
-                    And(Predicate("set", [X]), Predicate("subclass", [X, S]))))
 
         if "function" in atoms_str and "such" in atoms_str and "that" in atoms_str:
             X = None
@@ -242,6 +331,7 @@ class Translator:
              M = make_var("M")
              f = Constant("f_witness")
              Z = Variable("Z")
+             # N = {x in M | x not in f(x)}
              return Quantifier("forall", [Z],
                 Iff(Predicate("in", [Z, N]),
                     And(Predicate("in", [Z, M]),
@@ -255,12 +345,17 @@ class Translator:
              M = make_var("M")
              f = Constant("f_witness")
              N = Constant("N")
+             # Consider z such that f(z) = N.
+             # Implies z in dom(f). dom(f) = M. So z in M.
              return And(Predicate("in", [z, M]), Equal(Function("apply", [f, z]), N))
 
         if "Then" in atoms_str and "iff" in atoms_str:
              z = Constant("z")
              N = Constant("N")
              f = Constant("f_witness")
+             # z in N iff z notin f(z) = N
+             # z in N <=> ~ (z in f(z))
+             # Also f(z) = N
              return Iff(Predicate("in", [z, N]), Not(Predicate("in", [z, Function("apply", [f, z])])))
 
         if "Contradiction" in atoms_str:
