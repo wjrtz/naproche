@@ -1,52 +1,28 @@
 FROM python:3.11-slim
 
-# Install system dependencies
-# Added picosat for eprover dependency
-# Added unzip for vampire binary extraction
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    git \
-    picosat \
-    unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-RUN pip install --no-cache-dir \
-    lark \
-    pytest \
-    ruff \
-    pygls \
-    lsprotocol
-
-# Install Eprover (using Ubuntu deb package for version 3.0.03)
-# Note: python:3.11-slim is Debian-based, but Ubuntu packages are often compatible.
-# This avoids compiling from source which is slow.
-# Using apt-get install on the .deb file to handle dependencies automatically.
-WORKDIR /tmp
-RUN curl -L -o eprover.deb http://archive.ubuntu.com/ubuntu/pool/universe/e/eprover/eprover_3.0.03+ds-1_amd64.deb && \
-    apt-get update && apt-get install -y ./eprover.deb && \
-    rm eprover.deb && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install Vampire (precompiled binary)
-# Using v5.0.0 which provides precompiled static binaries for Linux.
-WORKDIR /usr/local/bin
-RUN curl -L https://github.com/vprover/vampire/releases/download/v5.0.0/vampire-Linux-X64.zip -o vampire.zip && \
-    unzip vampire.zip && \
-    chmod +x vampire && \
-    rm vampire.zip
-
-# Set up environment for the application
 WORKDIR /app
 
-# Set environment variables for provers
-# eprover from deb installs to /usr/bin/eprover
-ENV NAPROCHE_EPROVER=/usr/bin/eprover
-ENV NAPROCHE_VAMPIRE=/usr/local/bin/vampire
+# Ensure uv is in PATH for all subsequent run commands
+ENV PATH="/root/.cargo/bin:$PATH"
 
-# Copy source code
+# Copy the setup script first to leverage caching if dependencies haven't changed
+COPY pyproject.toml uv.lock* ./
+COPY scripts/setup.sh ./scripts/setup.sh
+
+# Run setup with system deps
+RUN ./scripts/setup.sh --install-system-deps --install-python-deps --install-provers
+
+# Copy the rest of the application
 COPY . .
 
-# Add src to PYTHONPATH so tests can import the package
+# Sync again to install the project itself
+RUN ./scripts/setup.sh --install-python-deps
+
+# Set up environment
+# Ensure .venv/bin is in PATH
+ENV PATH="/app/.venv/bin:$PATH"
+ENV NAPROCHE_EPROVER=/app/provers/eprover
+ENV NAPROCHE_VAMPIRE=/app/provers/vampire
 ENV PYTHONPATH=/app/src
+
+CMD ["naproche"]
