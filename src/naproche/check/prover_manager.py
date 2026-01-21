@@ -1,12 +1,11 @@
 from typing import Dict, Optional, List
-from naproche.prover import EProver, VampireProver, Z3Prover, DummyProver, Prover
+from naproche.prover import EProver, VampireProver, DummyProver, Prover
 
 class ProverManager:
     def __init__(self):
         self._provers: Dict[str, Prover] = {
             "eprover": EProver(),
             "vampire": VampireProver(),
-            "z3": Z3Prover(),
             "dummy": DummyProver(),
         }
         self.active_prover_name = "eprover"
