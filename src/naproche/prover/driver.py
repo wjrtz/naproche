@@ -1,43 +1,55 @@
-import subprocess
-import tempfile
-import os
-from typing import List, Tuple
-from naproche.prover.tptp import formulas_to_tptp_file
+from typing import List, Tuple, Dict, Optional
 from naproche.logic.fol import Formula
+from naproche.prover.provers import Prover, EProver, VampireProver, DummyProver
 
+# Global registry of available provers
+AVAILABLE_PROVERS: Dict[str, Prover] = {
+    "eprover": EProver(),
+    "vampire": VampireProver(),
+    "dummy": DummyProver(),
+}
+
+def get_prover(name: str) -> Optional[Prover]:
+    return AVAILABLE_PROVERS.get(name)
 
 def run_prover(
-    axioms: List[Tuple[str, Formula]], conjecture: Tuple[str, Formula], timeout=5
-) -> bool:
-    tptp_content = formulas_to_tptp_file(axioms, conjecture)
+    axioms: List[Tuple[str, Formula]],
+    conjecture: Tuple[str, Formula],
+    prover_names: List[str] = ["eprover"],
+    timeout=5,
+    benchmark_mode=False
+) -> Dict:
+    """
+    Runs one or more provers.
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".p", delete=False) as tmp:
-        tmp.write(tptp_content)
-        tmp_path = tmp.name
+    If benchmark_mode is False, it returns True as soon as one prover succeeds.
+    Returns: { 'success': bool, 'results': { prover_name: (success, time, output) } }
+    """
+    results = {}
+    success_overall = False
 
-    try:
-        eprover_path = os.environ.get("NAPROCHE_EPROVER")
-        if not eprover_path:
-            local_path = os.path.abspath("eprover/PROVER/eprover")
-            if os.path.exists(local_path):
-                eprover_path = local_path
-            else:
-                eprover_path = "eprover"
+    # In non-benchmark mode, we could potentially run them in parallel and return early.
+    # For simplicity, let's run them sequentially for now unless benchmark is true,
+    # or implement a simple loop.
 
-        cmd = [eprover_path, "--auto", "--silent", f"--cpu-limit={timeout}", tmp_path]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+    # If benchmark_mode is True, we run all specified provers.
+    # If benchmark_mode is False, we stop at first success.
 
-        # Check for SZS status Theorem (ignore leading char # or %)
-        if "SZS status Theorem" in result.stdout:
-            return True
-        elif "SZS status CounterSatisfiable" in result.stdout:
-            return False
+    for name in prover_names:
+        prover = get_prover(name)
+        if not prover:
+            results[name] = (False, 0.0, "Prover not found")
+            continue
 
-        return False
+        success, elapsed, output = prover.run(axioms, conjecture, timeout)
+        results[name] = (success, elapsed, output)
 
-    except FileNotFoundError:
-        print(f"eprover not found at {eprover_path}")
-        return False
-    finally:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        if success:
+            success_overall = True
+            if not benchmark_mode:
+                break
+
+    return {
+        'success': success_overall,
+        'results': results
+    }
