@@ -22,7 +22,19 @@ fi
 
 # Run sync only if pyproject.toml exists
 if [ -f "pyproject.toml" ]; then
-    uv sync --frozen || uv sync
+    # Install into virtual environment (with dev dependencies)
+    uv sync --frozen --extra dev || uv sync --extra dev
+
+    # Install into system/current python environment to support global usage
+    # This ensures 'python -m pytest' and other direct invocations work
+    uv pip install --system -e .[dev]
+
+    # Force global 'pytest' command to use the project's virtual environment
+    # This overrides any existing pytest (e.g. from pipx) that might use a different python
+    if [ -f ".venv/bin/pytest" ]; then
+        mkdir -p "$HOME/.local/bin"
+        ln -sf "$(pwd)/.venv/bin/pytest" "$HOME/.local/bin/pytest"
+    fi
 fi
 
 # 3. Provers
