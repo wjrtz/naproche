@@ -33,17 +33,14 @@ def convert_item(item: Dict[str, Any]) -> Optional[Statement]:
         args = item.get("args", [])
 
         if name == "read":
-            path = args[0] if args else ""
-            return Directive(path=path)
+            # Keep as Directive for Engine processing
+            return Directive(name=name, args=args)
         elif name == "prover":
             prover_name = args[0] if args else "eprover"
             return ProverDirective(prover_name=prover_name)
         else:
-             # Unknown directive, maybe treat as generic or ignore?
-             # For now, let's just return nothing or generic Directive?
-             # Directive model currently only has 'path'.
-             # Let's assume Directive is mainly for 'read'.
-             pass
+             # Generic directive
+             return Directive(name=name, args=args)
 
     elif type_ == "sentence":
         # Reconstruct text from atoms

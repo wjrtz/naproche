@@ -21,7 +21,8 @@ class Block(Statement):
 
 @dataclass
 class Directive(Statement):
-    path: str
+    name: str
+    args: List[str]
 
 @dataclass
 class ProverDirective(Statement):
