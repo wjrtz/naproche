@@ -5,7 +5,7 @@ set -e
 # Added 'zstd' to the list so tar can unpack the Eprover archive
 echo "Installing System Deps..."
 sudo apt-get update -qq
-sudo apt-get install -y -qq build-essential curl git picosat unzip binutils wget zstd
+sudo apt-get install -y -qq build-essential curl git picosat unzip binutils wget zstd zlib1g-dev
 
 # 2. Python (UV)
 echo "Installing Python Deps..."
@@ -57,24 +57,38 @@ fi
 
 # Eprover
 if [ ! -f "provers/eprover" ]; then
-    curl -L -s -o eprover.deb http://archive.ubuntu.com/ubuntu/pool/universe/e/eprover/eprover_3.0.03+ds-1_amd64.deb
-    ar x eprover.deb
+    echo "Downloading and building Eprover..."
+    # Using master branch as tags were failing to resolve to valid tarballs
+    curl -L -s https://github.com/eprover/eprover/tarball/master -o eprover.tar.gz
+    tar -xf eprover.tar.gz
 
-    # Extract data.tar.xz OR data.tar.zst
-    if [ -f "data.tar.xz" ]; then
-        tar xf data.tar.xz
-    elif [ -f "data.tar.zst" ]; then
-        # zstd is now installed, so this will work
-        tar --use-compress-program=zstd -xf data.tar.zst
+    # Check directory name (tarball/master usually extracts to user-repo-hash)
+    DIR_NAME=$(find . -maxdepth 1 -type d -name "eprover-eprover*" | head -n 1)
+
+    if [ -z "$DIR_NAME" ] || [ ! -d "$DIR_NAME" ]; then
+         echo "Error: Could not find Eprover source directory."
+         ls -d */
+         exit 1
     fi
 
-    # Move binary and clean up
-    if [ -f "usr/bin/eprover" ]; then
-        mv usr/bin/eprover provers/eprover
-        chmod +x provers/eprover
+    cd "$DIR_NAME"
+
+    # Configure and build
+    ./configure
+    make -j$(nproc)
+
+    # Move binary
+    if [ -f "PROVER/eprover" ]; then
+        mv PROVER/eprover ../provers/eprover
+    elif [ -f "bin/eprover" ]; then
+        mv bin/eprover ../provers/eprover
+    else
+        echo "Error: Eprover binary not found after build."
+        exit 1
     fi
 
-    rm -rf usr debian-binary control.tar.zst data.tar.xz data.tar.zst eprover.deb
+    cd ..
+    rm -rf "$DIR_NAME" eprover.tar.gz
 fi
 
 echo "Setup Complete"
