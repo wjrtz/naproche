@@ -100,3 +100,9 @@ SRC="${BASH_SOURCE:-$0}"
 REPO_ROOT="$(cd "$(dirname "$SRC")/.." && pwd)"
 export NAPROCHE_VAMPIRE="$REPO_ROOT/provers/vampire"
 export NAPROCHE_EPROVER="$REPO_ROOT/provers/eprover"
+
+# If running in GitHub Actions, also export to GITHUB_ENV
+if [ -n "$GITHUB_ENV" ]; then
+    echo "NAPROCHE_VAMPIRE=$NAPROCHE_VAMPIRE" >> "$GITHUB_ENV"
+    echo "NAPROCHE_EPROVER=$NAPROCHE_EPROVER" >> "$GITHUB_ENV"
+fi
