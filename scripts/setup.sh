@@ -15,6 +15,7 @@ fi
 
 # Ensure UV is on path
 if [ -f "$HOME/.local/bin/env" ]; then
+    # shellcheck disable=SC1091
     source "$HOME/.local/bin/env"
 else
     export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
@@ -67,7 +68,7 @@ if [ ! -f "provers/eprover" ]; then
 
     if [ -z "$DIR_NAME" ] || [ ! -d "$DIR_NAME" ]; then
          echo "Error: Could not find Eprover source directory."
-         ls -d */
+         ls -d -- */
          exit 1
     fi
 
@@ -75,7 +76,7 @@ if [ ! -f "provers/eprover" ]; then
 
     # Configure and build
     ./configure
-    make -j$(nproc)
+    make -j"$(nproc)"
 
     # Move binary
     if [ -f "PROVER/eprover" ]; then
