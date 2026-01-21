@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Ensure uv is in PATH for all subsequent run commands
-ENV PATH="/root/.cargo/bin:$PATH"
+ENV PATH="/root/.local/bin:/root/.cargo/bin:$PATH"
 
 # Copy the setup script first to leverage caching if dependencies haven't changed
 COPY pyproject.toml uv.lock* ./
