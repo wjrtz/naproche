@@ -15,6 +15,7 @@ fi
 
 # Ensure UV is on path
 if [ -f "$HOME/.local/bin/env" ]; then
+    # shellcheck disable=SC1091
     source "$HOME/.local/bin/env"
 else
     export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
@@ -67,7 +68,7 @@ if [ ! -f "provers/eprover" ]; then
 
     if [ -z "$DIR_NAME" ] || [ ! -d "$DIR_NAME" ]; then
          echo "Error: Could not find Eprover source directory."
-         ls -d */
+         ls -d -- */
          exit 1
     fi
 
@@ -75,7 +76,7 @@ if [ ! -f "provers/eprover" ]; then
 
     # Configure and build
     ./configure
-    make -j$(nproc)
+    make -j"$(nproc)"
 
     # Move binary
     if [ -f "PROVER/eprover" ]; then
@@ -92,3 +93,17 @@ if [ ! -f "provers/eprover" ]; then
 fi
 
 echo "Setup Complete"
+
+# Export environment variables for provers
+# Use BASH_SOURCE for sourcing in Bash, fallback to $0 for execution
+# Use ${BASH_SOURCE:-$0} to avoid array syntax [] which breaks POSIX sh
+SRC="${BASH_SOURCE:-$0}"
+REPO_ROOT="$(cd "$(dirname "$SRC")/.." && pwd)"
+export NAPROCHE_VAMPIRE="$REPO_ROOT/provers/vampire"
+export NAPROCHE_EPROVER="$REPO_ROOT/provers/eprover"
+
+# If running in GitHub Actions, also export to GITHUB_ENV
+if [ -n "$GITHUB_ENV" ]; then
+    echo "NAPROCHE_VAMPIRE=$NAPROCHE_VAMPIRE" >> "$GITHUB_ENV"
+    echo "NAPROCHE_EPROVER=$NAPROCHE_EPROVER" >> "$GITHUB_ENV"
+fi
