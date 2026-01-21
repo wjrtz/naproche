@@ -361,4 +361,13 @@ class Translator:
         if "Contradiction" in atoms_str:
              return Predicate("false", [])
 
+        # "1=1" or "1=0" pattern (Generic equality)
+        if "=" in atoms_str:
+            idx = atoms_str.index("=")
+            if idx > 0 and idx < len(atoms_str) - 1:
+                lhs = atoms_str[idx-1]
+                rhs = atoms_str[idx+1]
+                # Assuming numbers or vars
+                return Equal(Constant(lhs), Constant(rhs))
+
         return None

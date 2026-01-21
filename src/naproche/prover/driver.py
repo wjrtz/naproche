@@ -24,6 +24,14 @@ class Prover(ABC):
     def name(self) -> str:
         pass
 
+class DummyProver(Prover):
+    def run(self, tptp_path: str, timeout: int) -> ProverResult:
+        return ProverResult(True, 0.0, self.name, "Always True")
+
+    @property
+    def name(self) -> str:
+        return "dummy"
+
 class EProver(Prover):
     def run(self, tptp_path: str, timeout: int) -> ProverResult:
         eprover_path = os.environ.get("NAPROCHE_EPROVER")

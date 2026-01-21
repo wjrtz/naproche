@@ -37,6 +37,10 @@ class CNLTransformer(Transformer):
         # items[0] should be the result of `word` rule.
         return {'type': 'directive', 'action': 'prover', 'value': items[0]}
 
+    def cache_directive(self, items):
+        # cache_directive: "[" "cache" word "]"
+        return {'type': 'directive', 'action': 'cache', 'value': items[0]}
+
     def path(self, items):
         if len(items) >= 1:
             return items[0].value

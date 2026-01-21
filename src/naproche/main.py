@@ -11,6 +11,7 @@ def main():
     parser = argparse.ArgumentParser(description="Naproche - Natural Proof Checking")
     parser.add_argument("file", help="The .ftl.tex file to check")
     parser.add_argument("--benchmark", action="store_true", help="Run all available provers and output benchmark info")
+    parser.add_argument("--no-cache", action="store_true", help="Disable caching")
     args = parser.parse_args()
 
     try:
@@ -57,9 +58,11 @@ def main():
         root_path = base_path
 
     print(f"\nVerifying {len(all_statements)} statements...")
-    engine = Engine(base_path=root_path, benchmark_mode=args.benchmark)
+    engine = Engine(base_path=root_path, benchmark_mode=args.benchmark, no_cache=args.no_cache)
     if args.benchmark:
         print("Benchmarking mode enabled: [eprover, vampire]")
+    if args.no_cache:
+        print("Cache disabled by --no-cache")
 
     engine.check(all_statements)
 
