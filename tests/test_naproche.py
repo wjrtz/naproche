@@ -7,13 +7,14 @@ from naproche.logic.converter import convert_ast
 from naproche.logic.translator import Translator
 from naproche.logic.models import Sentence
 
+
 class TestNaproche(unittest.TestCase):
     def test_parser(self):
         text = "Let $X$ be a set."
         parsed = parse_cnl(text)
         self.assertIsInstance(parsed, list)
         self.assertTrue(len(parsed) > 0)
-        self.assertEqual(parsed[0]['type'], 'sentence')
+        self.assertEqual(parsed[0]["type"], "sentence")
 
     def test_translator(self):
         t = Translator()
@@ -27,6 +28,7 @@ class TestNaproche(unittest.TestCase):
         # Should be Predicate("set", [Constant("x")])
         self.assertEqual(str(f2), "set(x)")
 
+
 class TestIntegration(unittest.TestCase):
     def setUp(self):
         self.test_file = "math/examples/simple.ftl.tex"
@@ -36,7 +38,7 @@ class TestIntegration(unittest.TestCase):
         if not os.path.exists(self.test_file):
             return
 
-        with open(self.test_file, 'r') as f:
+        with open(self.test_file, "r") as f:
             content = f.read()
 
         blocks = extract_forthel_blocks(content)
@@ -66,5 +68,6 @@ class TestIntegration(unittest.TestCase):
         total = cursor.fetchone()[0]
         self.assertTrue(total > 0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,7 @@
-import threading
-import time
 import os
-import urllib.parse
-from naproche.lsp.server import server, validate
-from lsprotocol.types import DiagnosticSeverity, Diagnostic
+from naproche.lsp.server import validate
+from lsprotocol.types import DiagnosticSeverity
+
 
 class MockLanguageServer:
     def __init__(self):
@@ -12,6 +10,7 @@ class MockLanguageServer:
 
     def publish_diagnostics(self, uri, diagnostics):
         self.diagnostics[uri] = diagnostics
+
 
 class MockWorkspace:
     def __init__(self):
@@ -23,17 +22,21 @@ class MockWorkspace:
     def put_document(self, uri, content):
         self._docs[uri] = MockDocument(content)
 
+
 class MockDocument:
     def __init__(self, content):
         self.source = content
+
 
 class MockParams:
     def __init__(self, uri):
         self.text_document = MockTextDocumentIdentifier(uri)
 
+
 class MockTextDocumentIdentifier:
     def __init__(self, uri):
         self.uri = uri
+
 
 def test_validate_parsing_error():
     ls = MockLanguageServer()
@@ -56,6 +59,7 @@ This is a sentence.
     # Since we have no definitions, verification likely fails or is empty.
     # But checking for crash is first step.
     assert diags is not None
+
 
 def test_validate_syntax_error():
     ls = MockLanguageServer()
@@ -82,16 +86,18 @@ This is not a valid sentence because it misses a dot
     # But our offset logic should place it somewhere.
     assert err.range.start.line >= 0
 
+
 def test_uri_to_path_conversion():
     # Implicitly tested by validate logic extracting path from URI
     # We can test if included files are found relative to the file.
     pass
 
+
 def test_verification_error():
     ls = MockLanguageServer()
     uri = "file://" + os.path.abspath("test_verify.ftl.tex")
     # A contradiction to force verification failure
-    content = r"""
+    _content = r"""
 \begin{forthel}
 Assume a contradiction.
 Let $A$ be a set.
@@ -117,10 +123,11 @@ Then $x \neq x$.
     diags = ls.diagnostics.get(uri)
     if diags:
         for d in diags:
-             print(f"Diag2: {d.message}")
+            print(f"Diag2: {d.message}")
 
     assert diags is not None
     assert any(d.severity == DiagnosticSeverity.Error for d in diags)
+
 
 if __name__ == "__main__":
     test_validate_parsing_error()

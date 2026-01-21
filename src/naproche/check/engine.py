@@ -1,9 +1,18 @@
 import os
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
-from naproche.logic.models import Statement, Sentence, Definition, Theorem, Axiom, Proof, Directive, Lemma
+from naproche.logic.models import (
+    Statement,
+    Sentence,
+    Definition,
+    Theorem,
+    Axiom,
+    Proof,
+    Directive,
+    Lemma,
+)
 from naproche.logic.translator import Translator
-from naproche.logic.fol import Formula, Predicate, Not
+from naproche.logic.fol import Predicate, Not
 from naproche.prover.driver import run_prover
 from naproche.check.cache import ProverCache, compute_hash
 
@@ -11,6 +20,7 @@ from naproche.check.cache import ProverCache, compute_hash
 from naproche.parser.preprocessor import extract_forthel_blocks
 from naproche.parser.cnl_parser import parse_cnl
 from naproche.logic.converter import convert_ast
+
 
 def verify_task(axioms_repr, context_repr, proof_context_repr, goal_repr):
     all_axioms = axioms_repr + context_repr + proof_context_repr
@@ -22,14 +32,19 @@ def verify_task(axioms_repr, context_repr, proof_context_repr, goal_repr):
     result = run_prover(all_axioms, ("goal", goal_repr))
     return (False, result, h)
 
+
 class Reporter:
     """Abstract base class for reporting checking progress and results."""
+
     def log(self, message):
         pass
+
     def error(self, message):
         pass
+
     def step_verified(self, step_num, description, success, source):
         pass
+
 
 class StdoutReporter(Reporter):
     def log(self, message):
@@ -73,7 +88,7 @@ class Engine:
 
         self.reporter.log(f"Processing included file: {full_path}")
         try:
-            with open(full_path, 'r') as f:
+            with open(full_path, "r") as f:
                 content = f.read()
             blocks = extract_forthel_blocks(content)
             all_stmts = []
@@ -83,7 +98,7 @@ class Engine:
                     ast = parse_cnl(block.content)
                     stmts = convert_ast(ast)
                     all_stmts.extend(stmts)
-                except Exception as e:
+                except Exception:
                     # self.reporter.log(f"Error parsing included block: {e}")
                     pass
 
@@ -97,7 +112,11 @@ class Engine:
             path = stmt.path
             self.process_file(path)
 
-        elif isinstance(stmt, Definition) or isinstance(stmt, Axiom) or isinstance(stmt, Lemma):
+        elif (
+            isinstance(stmt, Definition)
+            or isinstance(stmt, Axiom)
+            or isinstance(stmt, Lemma)
+        ):
             # Treat Lemmas as Axioms if included or generally useful results
             formulas = self.translator.translate_statement(stmt)
             for f in formulas:
@@ -109,17 +128,21 @@ class Engine:
         elif isinstance(stmt, Theorem):
             # If included, treat theorem as axiom (proved result)
             if is_included:
-                self.reporter.log(f"Importing Theorem: {stmt.author if stmt.author else 'Unknown'}")
+                self.reporter.log(
+                    f"Importing Theorem: {stmt.author if stmt.author else 'Unknown'}"
+                )
                 formulas = self.translator.translate_statement(stmt)
                 # Assume last formula is the theorem claim
                 if formulas:
-                     f = formulas[-1]
-                     name = f"thm_{self.counter}"
-                     self.counter += 1
-                     self.axioms.append((name, f))
-                     self.reporter.log(f"Added axiom (Theorem): {f}")
+                    f = formulas[-1]
+                    name = f"thm_{self.counter}"
+                    self.counter += 1
+                    self.axioms.append((name, f))
+                    self.reporter.log(f"Added axiom (Theorem): {f}")
             else:
-                self.reporter.log(f"Checking Theorem: {stmt.author if stmt.author else 'Unknown'}")
+                self.reporter.log(
+                    f"Checking Theorem: {stmt.author if stmt.author else 'Unknown'}"
+                )
                 formulas = self.translator.translate_statement(stmt)
                 if not formulas:
                     self.reporter.error("Could not translate theorem statement.")
@@ -135,7 +158,7 @@ class Engine:
 
         elif isinstance(stmt, Proof):
             if is_included:
-                pass # Skip proofs of included files
+                pass  # Skip proofs of included files
             else:
                 self.reporter.log("Checking Proof (Parallel)...")
                 self.check_proof(stmt)
@@ -145,40 +168,57 @@ class Engine:
         tasks = []
 
         with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as executor:
-
             for i, s in enumerate(proof.content):
                 if isinstance(s, Sentence):
                     f = self.translator.translate_sentence(s)
                     if not f:
-                        self.reporter.error(f"Step {i+1}: Could not translate '{s.text}'")
+                        self.reporter.error(
+                            f"Step {i + 1}: Could not translate '{s.text}'"
+                        )
                         continue
 
                     text = s.text.strip()
                     is_assumption = False
-                    if text.startswith("Assume") or text.startswith("Let") or text.startswith("Take") or text.startswith("Define") or text.startswith("Consider"):
+                    if (
+                        text.startswith("Assume")
+                        or text.startswith("Let")
+                        or text.startswith("Take")
+                        or text.startswith("Define")
+                        or text.startswith("Consider")
+                    ):
                         is_assumption = True
 
                     if isinstance(f, Predicate) and f.name == "contrary":
-                        if hasattr(self, 'current_goal'):
+                        if hasattr(self, "current_goal"):
                             neg_goal = Not(self.current_goal)
                             proof_context.append((f"step_{i}", neg_goal))
-                            self.reporter.log(f"Step {i+1}: Assumed contrary: {neg_goal}")
+                            self.reporter.log(
+                                f"Step {i + 1}: Assumed contrary: {neg_goal}"
+                            )
                         continue
 
                     elif isinstance(f, Predicate) and f.name == "false":
-                        self.reporter.log(f"Step {i+1}: Contradiction.")
+                        self.reporter.log(f"Step {i + 1}: Contradiction.")
                         ctx_copy = list(proof_context)
-                        future = executor.submit(verify_task, self.axioms, self.context, ctx_copy, Predicate("false", []))
-                        tasks.append((future, i+1, "Contradiction"))
+                        future = executor.submit(
+                            verify_task,
+                            self.axioms,
+                            self.context,
+                            ctx_copy,
+                            Predicate("false", []),
+                        )
+                        tasks.append((future, i + 1, "Contradiction"))
 
                     elif is_assumption:
-                        self.reporter.log(f"Step {i+1}: Assumption/Definition: {f}")
+                        self.reporter.log(f"Step {i + 1}: Assumption/Definition: {f}")
                         proof_context.append((f"step_{i}", f))
                     else:
-                        self.reporter.log(f"Step {i+1}: Verifying {f}")
+                        self.reporter.log(f"Step {i + 1}: Verifying {f}")
                         ctx_copy = list(proof_context)
-                        future = executor.submit(verify_task, self.axioms, self.context, ctx_copy, f)
-                        tasks.append((future, i+1, f"Verification of {f}"))
+                        future = executor.submit(
+                            verify_task, self.axioms, self.context, ctx_copy, f
+                        )
+                        tasks.append((future, i + 1, f"Verification of {f}"))
 
                         proof_context.append((f"step_{i}", f))
 
