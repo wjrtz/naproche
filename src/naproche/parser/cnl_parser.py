@@ -9,13 +9,11 @@ class CNLTransformer(Transformer):
         return items[0]
 
     def directive(self, items):
-        if len(items) == 1:
-            return {"type": "directive", "path": items[0]}
-        path_val = "UNKNOWN"
-        for item in items:
-            if isinstance(item, str):
-                path_val = item
-        return {"type": "directive", "path": path_val}
+        name = items[0]
+        args = []
+        if len(items) > 1:
+            args = items[1:]
+        return {"type": "directive", "name": name, "args": args}
 
     def path(self, items):
         if len(items) >= 1:
