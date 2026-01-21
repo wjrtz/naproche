@@ -4,7 +4,7 @@ element: directive
        | environment
        | sentence
 
-directive: "[" directive_name directive_arg* "]"
+directive: BRACKET_OPEN directive_name directive_arg* BRACKET_CLOSE
 directive_name: "/"? word
 directive_arg: path | /[^\s\]]+/
 
@@ -20,11 +20,13 @@ optional_arg: "[" /[^\]]+/ "]"
 
 sentence: atom+ DOT
 
-atom: math | word | other_symbol | punctuation
+atom: math | latex_cmd | word | other_symbol | punctuation
 
 math: INLINE_MATH | DISPLAY_MATH
 INLINE_MATH: /\$[^$]+\$/
 DISPLAY_MATH: /\\\[(.|\n)+?\\\]/ | /\$\$(.|\n)+?\$\$/
+
+latex_cmd: "\\" /[a-zA-Z]+/
 
 word: /[a-zA-Z0-9_]+/
 other_symbol: /[^\s\w$.\[\]\\{}]+/ | BACKSLASH | BRACE_OPEN | BRACE_CLOSE | BRACKET_OPEN | BRACKET_CLOSE
