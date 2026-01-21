@@ -1,8 +1,9 @@
 import os
 import subprocess
 import tempfile
-from typing import List, Tuple
-from naproche.prover.base import Prover
+import re
+from typing import List, Tuple, Optional
+from naproche.prover.base import Prover, ProverResult
 from naproche.prover.tptp import formulas_to_tptp_file
 from naproche.logic.fol import Formula
 
@@ -16,7 +17,7 @@ class EProver(Prover):
         axioms: List[Tuple[str, Formula]],
         conjecture: Tuple[str, Formula],
         timeout: float
-    ) -> bool:
+    ) -> ProverResult:
         tptp_content = formulas_to_tptp_file(axioms, conjecture)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".p", delete=False) as tmp:
@@ -32,21 +33,41 @@ class EProver(Prover):
                 else:
                     eprover_path = "eprover"
 
-            cmd = [eprover_path, "--auto", "--silent", f"--cpu-limit={timeout}", tmp_path]
+            # Eprover needs --proof-object or similar to output proof
+            cmd = [eprover_path, "--auto", "--silent", f"--cpu-limit={timeout}", "--proof-object", tmp_path]
             # Use run but handle potential FileNotFoundError for executable
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True)
             except FileNotFoundError:
-                # Fallback if command not found
-                return False
+                return ProverResult(success=False, output="EProver executable not found")
 
             if "SZS status Theorem" in result.stdout:
-                return True
-            elif "SZS status CounterSatisfiable" in result.stdout:
-                return False
+                used_axioms = self._extract_used_axioms(result.stdout)
+                # Check if proof object was actually generated
+                # Eprover usually outputs proof if requested and successful
+                if "SZS output start Proof" in result.stdout or "# Proof found!" in result.stdout:
+                    return ProverResult(success=True, used_axioms=used_axioms, output=result.stdout)
+                else:
+                    return ProverResult(success=True, used_axioms=None, output=result.stdout)
 
-            return False
+            elif "SZS status CounterSatisfiable" in result.stdout:
+                return ProverResult(success=False, output=result.stdout)
+
+            return ProverResult(success=False, output=result.stdout)
 
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+
+    def _extract_used_axioms(self, output: str) -> List[str]:
+        # Eprover output format for file usually: file('...', name)
+        # Broader regex
+        used = set()
+        for line in output.splitlines():
+            if "file(" in line:
+                match = re.search(r"file\('.*?',\s*([a-zA-Z0-9_\-\.]+)\)", line)
+                if match:
+                    name = match.group(1)
+                    if name != "unknown":
+                        used.add(name)
+        return list(used)

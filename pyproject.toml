@@ -19,7 +19,7 @@ build-backend = "hatchling.build"
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
+    "pytest>=8.0.0",
     "ruff",
 ]
 
