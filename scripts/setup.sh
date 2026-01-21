@@ -94,7 +94,8 @@ fi
 echo "Setup Complete"
 
 # Export environment variables for provers
-# Use absolute paths relative to this script location
-REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Use BASH_SOURCE for sourcing in Bash, fallback to $0 for execution
+SRC="${BASH_SOURCE[0]:-$0}"
+REPO_ROOT="$(cd "$(dirname "$SRC")/.." && pwd)"
 export NAPROCHE_VAMPIRE="$REPO_ROOT/provers/vampire"
 export NAPROCHE_EPROVER="$REPO_ROOT/provers/eprover"
