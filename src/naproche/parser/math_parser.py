@@ -1,13 +1,17 @@
 from lark import Lark, Transformer, v_args, Token
-from naproche.logic.fol import Term, Formula, Predicate, Function, Variable, Constant, Equal
+from naproche.logic.fol import Term, Formula, Predicate, Function, Variable, Constant, Equal, Implies, Iff, And
 
 math_grammar = r"""
     ?start: expression
 
-    ?expression: relation
+    ?expression: implication
+               | relation
                | term
 
-    ?relation: term REL_OP term
+    ?implication: expression IMPLIES expression
+                | expression IFF expression
+
+    ?relation: term REL_OP term (REL_OP term)*
 
     // Precedence:
     // 1. set_op (cap, cup, setminus) - highest binding in terms (after func/subscript)
@@ -50,14 +54,22 @@ math_grammar = r"""
 
     subscript: term "_" (simple_term | "{" term "}")
 
-    set_comp: "\\class" "{" term "|" text_condition "}"
-    text_condition: /.+?(?=})/
+    set_comp: "\\class" "{" term "|" text_condition_plain "}"
+            | "{" expression "|" text_condition_plain "}"
+            | "{" expression "\\mid" text_condition_plain "}"
+            | "\\{" expression "\\mid" text_condition_escaped "\\}"
+
+    text_condition_plain: /(.|\n)+?(?=})/
+    text_condition_escaped: /(.|\n)+?(?=\\})/
 
     COLON: ":"
     TO: /\\to/ | /\\rightarrow/
     LEFTTRIGHTARROW: /\\leftrightarrow/
 
-    REL_OP: "<" | "=" | "\\leq" | "\\in" | "\\subseteq" | ">" | "\\geq" | "\\neq" | COLON
+    IMPLIES: /\\implies/ | /\\Longrightarrow/
+    IFF: /\\iff/ | /\\Longleftrightarrow/
+
+    REL_OP: "<" | "=" | "\\leq" | "\\le" | "\\in" | "\\subseteq" | ">" | "\\geq" | "\\ge" | "\\neq" | COLON
 
     ARROW: TO | RIGHTARROW | LEFTTRIGHTARROW
     SET_OP: "\\setminus" | "\\cup" | "\\cap"
@@ -81,8 +93,34 @@ class MathTransformer(Transformer):
     def expression(self, items):
         return items[0]
 
-    def relation(self, items):
+    def implication(self, items):
         left, op, right = items
+        if getattr(op, 'type', '') == 'IFF':
+            return Iff(left, right)
+        return Implies(left, right)
+
+    def relation(self, items):
+        if len(items) == 3:
+            return self._binary_relation(items[0], items[1], items[2])
+
+        # Chained relation: term op term op term ...
+        # Convert to And(op(t1,t2), And(op(t2,t3), ...))
+        # items: [t1, op1, t2, op2, t3, ...]
+
+        left = items[0]
+        exprs = []
+        for i in range(1, len(items), 2):
+            op = items[i]
+            right = items[i+1]
+            exprs.append(self._binary_relation(left, op, right))
+            left = right
+
+        res = exprs[0]
+        for e in exprs[1:]:
+            res = And(res, e)
+        return res
+
+    def _binary_relation(self, left, op, right):
         op_str = str(op)
         if op_str == "=":
             return Equal(left, right)
@@ -90,8 +128,12 @@ class MathTransformer(Transformer):
             return Predicate("in", [left, right])
         elif op_str == "<":
             return Predicate("less", [left, right])
-        elif op_str == "\\leq":
+        elif op_str == "\\leq" or op_str == "\\le":
             return Predicate("leq", [left, right])
+        elif op_str == "\\geq" or op_str == "\\ge":
+            return Predicate("geq", [left, right])
+        elif op_str == "\\neq":
+            return Predicate("neq", [left, right])
         elif op_str == "\\subseteq":
             return Predicate("subset", [left, right])
         elif op_str == ":":
@@ -191,6 +233,21 @@ class MathTransformer(Transformer):
         base, sub = items
         return Function("subscript", [base, sub])
 
+    def set_comp(self, items):
+        # Return special function/object to be handled by translator
+        # items: [expression, text_condition]
+        expr = items[0]
+        cond = items[1]
+
+        # Extract text from Tree/Token
+        if hasattr(cond, 'children'):
+            # It's a Tree
+            cond_str = "".join(str(c) for c in cond.children)
+        else:
+            cond_str = str(cond)
+
+        return Function("set_comp", [expr, Constant(f"'{cond_str}'")])
+
     def term(self, items):
         return items[0]
 
@@ -208,6 +265,8 @@ def parse_math(text):
              text = text[1:-1]
     elif text.startswith("\\[") and text.endswith("\\]"):
         text = text[2:-2]
+
+    text = text.strip()
 
     if text.endswith("."):
         text = text[:-1]
