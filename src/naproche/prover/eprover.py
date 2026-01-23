@@ -20,6 +20,12 @@ class EProver(Prover):
     ) -> ProverResult:
         tptp_content = formulas_to_tptp_file(axioms, conjecture)
 
+        # Write to debug log file to avoid stdout buffering issues
+        with open("debug_tptp.log", "a") as log:
+            log.write(f"\n--- EProver TPTP Input ({timeout}s) ---\n")
+            log.write(tptp_content)
+            log.write("\n--------------------------\n")
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".p", delete=False) as tmp:
             tmp.write(tptp_content)
             tmp_path = tmp.name
@@ -38,6 +44,11 @@ class EProver(Prover):
             # Use run but handle potential FileNotFoundError for executable
             try:
                 result = subprocess.run(cmd, capture_output=True, text=True)
+                with open("debug_tptp.log", "a") as log:
+                    log.write("--- EProver Output ---\n")
+                    log.write(result.stdout)
+                    log.write(result.stderr)
+                    log.write("\n----------------------\n")
             except FileNotFoundError:
                 return ProverResult(success=False, output="EProver executable not found")
 

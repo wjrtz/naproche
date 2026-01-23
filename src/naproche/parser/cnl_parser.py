@@ -16,15 +16,41 @@ class CNLTransformer(Transformer):
         return items[0]
 
     def directive(self, items):
-        name = items[0]
-        args = []
-        if len(items) > 1:
-            args = items[1:]
-        return {"type": "directive", "name": name, "args": args}
+        # items[0] is '['
+        # items[1] is directive_name
+        # items[2:-1] are directive_args
+        # items[-1] is ']'
+
+        name = items[1]
+        args = items[2:-1]
+
+        clean_args = []
+        for arg in args:
+            if isinstance(arg, Token):
+                clean_args.append(arg.value)
+            else:
+                clean_args.append(str(arg))
+
+        return {"type": "directive", "name": name, "args": clean_args}
+
+    def directive_name(self, items):
+        return "".join([str(i) for i in items])
+
+    def directive_arg(self, items):
+        # This returns the child, which could be the path string (from path method)
+        # or a Token from regex.
+        item = items[0]
+        if isinstance(item, Token):
+            return item.value
+        return item
 
     def path(self, items):
+        # path: "\\path{" /[^}]+/ "}"
+        # Empirically, items contains only the regex match token
         if len(items) >= 1:
-            return items[0].value
+            if isinstance(items[0], Token):
+                return items[0].value
+            return str(items[0])
         return ""
 
     def environment(self, items):

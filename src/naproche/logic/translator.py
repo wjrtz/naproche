@@ -34,6 +34,7 @@ class Translator:
         self.synonyms = {}
 
     def add_macro(self, phrase: str, replacement: Term):
+        # print(f"DEBUG: Adding macro '{phrase}' -> {replacement}")
         self.macros[phrase.lower()] = replacement
 
     def add_synonym(self, singular: str, plural: str):
@@ -215,7 +216,8 @@ class Translator:
                     if is_math(replacement_str):
                         repl_term = self.parse_math_safe(replacement_str)
                         if repl_term:
-                            return Predicate("stand_for", [Constant(phrase), repl_term])
+                            self.add_macro(phrase, repl_term)
+                            return None
             except:
                 pass
 
@@ -402,15 +404,15 @@ class Translator:
                             var_str = None
                             domain = None
 
-                            if len(maths) == 1 and r"\in" in maths[0]:
-                                parts = maths[0].split(r"\in")
+                            if len(maths) == 1 and r"\\in" in maths[0]:
+                                parts = maths[0].split(r"\\in")
                                 if len(parts) == 2:
                                     var_str = parts[0]
                                     dom_str = parts[1]
                                     if not dom_str.strip().startswith("$"): dom_str = "$" + dom_str
                                     if not dom_str.strip().endswith("$"): dom_str = dom_str + "$"
                                     domain = self.parse_math_safe(dom_str)
-                                    var_str = var_str.replace("$", "").replace(r"\[", "") # Clean var_str for splitting
+                                    var_str = var_str.replace("$", "").replace(r"\\[", "") # Clean var_str for splitting
 
                             elif len(maths) >= 2:
                                 var_str = maths[0]
@@ -418,7 +420,7 @@ class Translator:
 
                             if var_str and domain:
                                 # Handle comma separated variables: $x,y$
-                                raw_vars = var_str.replace("$", "").replace(r"\[", "").replace(r"\]", "").split(",")
+                                raw_vars = var_str.replace("$", "").replace(r"\\[", "").replace(r"\\]", "").split(",")
                                 vars_list = []
                                 for rv in raw_vars:
                                     vt = self.parse_math_safe(rv.strip())
@@ -426,12 +428,12 @@ class Translator:
                                         vars_list.append(Variable(vt.name))
                                     else:
                                         if rv.strip():
-                                             vars_list.append(Variable(rv.strip()))
+                                            vars_list.append(Variable(rv.strip()))
 
                                 if vars_list:
                                     res = body_formula
                                     for v in reversed(vars_list):
-                                         res = Quantifier("forall", [v], Implies(Predicate("in", [v, domain]), res))
+                                        res = Quantifier("forall", [v], Implies(Predicate("in", [v, domain]), res))
                                     return self.expand_colon(res)
 
                     elif next_word == "some":
@@ -516,6 +518,7 @@ class Translator:
                 return self.translate_sentence(rest_sent, as_axiom=as_axiom)
 
         res = self._translate_logic(clean_atoms, effective_atoms, n, n_eff, parse_term, is_math, as_axiom)
+        # print(f"DEBUG: Result for '{text}': {res}")
         if res:
             return self.expand_colon(res)
         return None
@@ -525,41 +528,113 @@ class Translator:
             return Predicate("contrary", [])
 
         if clean_atoms and clean_atoms[0] == "Assume" and len(clean_atoms) > 2:
-             if is_math(clean_atoms[1]) and clean_atoms[2] == "is":
-                 term = self.parse_math_safe(clean_atoms[1])
-                 if as_axiom:
-                     term = Variable(term.name) if isinstance(term, Constant) else term
+             # Updated "Assume X is ..." to handle comma-separated variables in single math token
+             tok = clean_atoms[1]
+             rest_start_idx = 3
 
-                 rest = clean_atoms[3:]
-                 if rest and rest[0] in ["a", "an"]:
-                     rest = rest[1:]
+             # Flexible "is" detection
+             is_found = False
+             if clean_atoms[2] == "is":
+                 is_found = True
+                 rest_start_idx = 3
+             elif clean_atoms[2] in ["are", "be"]: # Just in case
+                 is_found = True
+                 rest_start_idx = 3
 
-                 if len(rest) == 1:
-                     noun = rest[0]
-                     return Predicate(noun, [term])
-                 elif len(rest) > 1 and "element" in rest and "of" in rest:
-                     of_idx = rest.index("of")
-                     if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
-                         domain = parse_term(rest[of_idx+1])
-                         return Predicate("in", [term, domain])
+             if is_math(tok) and is_found:
+                 variables = []
+                 term = self.parse_math_safe(tok)
+                 if isinstance(term, (Variable, Constant)):
+                     if as_axiom:
+                         variables.append(Variable(term.name))
+                     else:
+                         variables.append(term)
+                 else:
+                     # Split manual
+                     inner = tok.replace("$", "").replace(r"\\[", "").replace(r"\\]", "")
+                     parts = inner.split(",")
+                     for part in parts:
+                         pt = self.parse_math_safe(part.strip())
+                         if isinstance(pt, (Variable, Constant)):
+                             if as_axiom:
+                                 variables.append(Variable(pt.name))
+                             else:
+                                 variables.append(pt)
 
-                 elif len(rest) > 1 and "of" in rest:
-                     of_idx = rest.index("of")
-                     if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
-                         noun_phrase = "_".join(rest[:of_idx])
-                         domain = parse_term(rest[of_idx+1])
-                         return Predicate(noun_phrase, [term, domain])
+                 if variables:
+                     rest = clean_atoms[rest_start_idx:]
+                     if rest and rest[0] in ["a", "an"]:
+                         rest = rest[1:]
+
+                     if len(rest) == 1:
+                         noun = rest[0]
+                         preds = [Predicate(noun, [v]) for v in variables]
+                         if len(preds) == 1: return preds[0]
+                         res = preds[0]
+                         for p in preds[1:]: res = And(res, p)
+                         return res
+                     elif len(rest) > 1 and "element" in rest and "of" in rest:
+                         of_idx = rest.index("of")
+                         if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
+                             domain = parse_term(rest[of_idx+1])
+                             preds = [Predicate("in", [v, domain]) for v in variables]
+                             if len(preds) == 1: return preds[0]
+                             res = preds[0]
+                             for p in preds[1:]: res = And(res, p)
+                             return res
+
+                     elif len(rest) > 1 and "of" in rest:
+                         of_idx = rest.index("of")
+                         if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
+                             noun_phrase = "_".join(rest[:of_idx])
+                             domain = parse_term(rest[of_idx+1])
+                             preds = [Predicate(noun_phrase, [v, domain]) for v in variables]
+                             if len(preds) == 1: return preds[0]
+                             res = preds[0]
+                             for p in preds[1:]: res = And(res, p)
+                             return res
 
         if clean_atoms and clean_atoms[0] == "Let":
             if "be" in clean_atoms:
                 be_idx = clean_atoms.index("be")
-                if be_idx == 2 and is_math(clean_atoms[1]):
-                    term = self.parse_math_safe(clean_atoms[1])
-                    if isinstance(term, Constant) and as_axiom:
-                        term = Variable(term.name)
-                    if isinstance(term, Variable) and not as_axiom:
-                         term = parse_term(clean_atoms[1])
 
+                # Check for comma-separated variables in "Let X, Y be sets"
+                variables = []
+
+                # Scan from index 1 up to be_idx
+                for i in range(1, be_idx):
+                    tok = clean_atoms[i]
+                    # Skip commas
+                    if tok.strip() == ",":
+                        continue
+
+                    if is_math(tok):
+                        term = self.parse_math_safe(tok)
+                        if isinstance(term, Constant) and as_axiom:
+                            term = Variable(term.name)
+                        if isinstance(term, Variable) and not as_axiom:
+                             term = parse_term(tok)
+
+                        # Handle case where one math block contains multiple variables "$X, Y$"
+                        if isinstance(term, (Variable, Constant)):
+                             variables.append(term)
+                        else:
+                             # Try splitting inside math if it wasn't parsed as simple term
+                             # But parse_math_safe might return None or complex term
+                             # If we have comma inside math block, manual split
+                             inner = tok.replace("$", "").replace(r"\\[", "").replace(r"\\]", "")
+                             parts = inner.split(",")
+                             for part in parts:
+                                 pt = self.parse_math_safe(part.strip())
+                                 if isinstance(pt, (Variable, Constant)):
+                                     if as_axiom:
+                                         variables.append(Variable(pt.name))
+                                     else:
+                                         variables.append(pt)
+                    else:
+                        pass
+
+                if variables:
                     rest = clean_atoms[be_idx+1:]
                     if rest and rest[0] in ["a", "an"]:
                         rest = rest[1:]
@@ -569,16 +644,42 @@ class Translator:
                          of_idx = rest.index("of")
                          if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
                              domain = parse_term(rest[of_idx+1])
-                             return Predicate("subset", [term, domain])
+                             preds = [Predicate("subset", [v, domain]) for v in variables]
+                             if len(preds) == 1: return preds[0]
+                             res = preds[0]
+                             for p in preds[1:]: res = And(res, p)
+                             return res
+
+                    # Handle "subclass of" (new fix for prelims)
+                    if len(rest) > 1 and "subclass" in rest and "of" in rest:
+                         of_idx = rest.index("of")
+                         if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
+                             domain = parse_term(rest[of_idx+1])
+                             preds = [Predicate("subclass", [v, domain]) for v in variables]
+                             if len(preds) == 1: return preds[0]
+                             res = preds[0]
+                             for p in preds[1:]: res = And(res, p)
+                             return res
 
                     if len(rest) == 1:
                         noun = rest[0]
-                        return Predicate(noun, [term])
+                        noun = self.normalize_noun(noun)
+
+                        preds = [Predicate(noun, [v]) for v in variables]
+                        if len(preds) == 1: return preds[0]
+                        res = preds[0]
+                        for p in preds[1:]: res = And(res, p)
+                        return res
+
                     elif len(rest) > 1 and "element" in rest and "of" in rest:
                          of_idx = rest.index("of")
                          if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
                              domain = parse_term(rest[of_idx+1])
-                             return Predicate("in", [term, domain])
+                             preds = [Predicate("in", [v, domain]) for v in variables]
+                             if len(preds) == 1: return preds[0]
+                             res = preds[0]
+                             for p in preds[1:]: res = And(res, p)
+                             return res
 
             if len(clean_atoms) > 2 and is_math(clean_atoms[1]):
                 t = self.parse_math_safe(clean_atoms[1])
@@ -614,35 +715,26 @@ class Translator:
                           if len(parts) == 2:
                               var_str = parts[0]
                               dom_str = parts[1]
-                              if dom_str.endswith("$") or dom_str.endswith(r"\]"):
-                                  # Reconstruct domain math string properly if needed, but parse_math handles fragments usually?
-                                  # Need to ensure $ wrappers if stripped
-                                  pass
+                              if not dom_str.strip().startswith("$"): dom_str = "$" + dom_str
+                              if not dom_str.strip().endswith("$"): dom_str = dom_str + "$"
+                              domain = self.parse_math_safe(dom_str)
+                              var_str = var_str.replace("$", "").replace(r"\\[", "") # Clean var_str for splitting
 
-                              # Parse domain
-                              # Prepend $ if missing?
-                              if not dom_str.strip().startswith("$"):
-                                  dom_str = "$" + dom_str
-                              if not dom_str.strip().endswith("$"):
-                                  dom_str = dom_str + "$"
+                              if var_str and domain:
+                                  # Handle comma separated variables: $x,y$
+                                  raw_vars = var_str.replace("$", "").replace(r"\\[", "").replace(r"\\]", "").split(",")
+                                  vars_list = []
+                                  for rv in raw_vars:
+                                      vt = self.parse_math_safe(rv.strip())
+                                      if isinstance(vt, (Variable, Constant)):
+                                          vars_list.append(Variable(vt.name))
+                                      else:
+                                          if rv.strip():
+                                              vars_list.append(Variable(rv.strip()))
 
-                              d = self.parse_math_safe(dom_str)
-
-                              # Parse variables
-                              # Strip start $
-                              var_str = var_str.replace("$", "").replace(r"\[", "")
-                              raw_vars = var_str.split(",")
-                              vars_list = []
-                              for rv in raw_vars:
-                                  vt = self.parse_math_safe(rv.strip())
-                                  if isinstance(vt, (Variable, Constant)):
-                                      vars_list.append(Variable(vt.name))
-                                  elif rv.strip():
-                                      vars_list.append(Variable(rv.strip()))
-
-                              if vars_list and d:
-                                  for v_item in vars_list:
-                                      vars_domains.append((v_item, d))
+                                  if vars_list:
+                                      for v_item in vars_list:
+                                          vars_domains.append((v_item, domain))
 
                       elif i+2 < len(clean_atoms):
                           if clean_atoms[i+1] == "in" and is_math(clean_atoms[i+2]):
@@ -650,7 +742,7 @@ class Translator:
                               d = self.parse_math_safe(clean_atoms[i+2])
 
                               # Handle comma separated variables
-                              raw_vars = var_str.replace("$", "").replace(r"\[", "").replace(r"\]", "").split(",")
+                              raw_vars = var_str.replace("$", "").replace(r"\\[", "").replace(r"\\]", "").split(",")
                               vars_list = []
                               for rv in raw_vars:
                                   vt = self.parse_math_safe(rv.strip())

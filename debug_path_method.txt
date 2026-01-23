@@ -1,0 +1,35 @@
+    def path(self, items):
+        # path: "\\path{" /[^}]+/ "}"
+        # In grammar: path: "\\path{" /[^}]+/ "}"
+        # The first literal string is tokenized as one token if possible?
+        # No, Lark splits terminals.
+
+        # When I used debug script:
+        # DEBUG PATH: [Token('__ANON_2', 'examples/preliminaries.ftl.tex')]
+        # This implies items has only 1 element!
+
+        # Why?
+        # `path: "\\path{" /[^}]+/ "}"`
+        # "\path{" is a terminal.
+        # /[^}]+/ is a terminal.
+        # "}" is a terminal.
+
+        # Lark Earley parser might filter out anonymous terminals?
+        # If I look at the grammar:
+        # path: "\\path{" /[^}]+/ "}"
+
+        # Maybe "\path{" matches but is not passed to transformer because it's a string literal in rule?
+        # No, Lark usually passes all children unless filtered.
+
+        # Wait, if items has 1 element, it must be the content.
+        # Let's check item[0].value
+
+        if len(items) == 1:
+             return items[0].value
+
+        # If it has 3, then it is: \path{, content, }
+        if len(items) >= 2:
+             # Assume content is in the middle or end
+             # But if items[0] is the content...
+             return items[1].value
+        return ""
