@@ -1,1 +1,102 @@
-eprover: che_proofcontrol.c:163: sat_solver_init: Assertion `status' failed.
+Verifying math/examples/simple.ftl.tex...
+Parsed statements:
+Directive: prover args=['eprover']
+Directive: read args=['examples/preliminaries.ftl.tex']
+Stmt: <class 'naproche.logic.models.Theorem'>
+Stmt: <class 'naproche.logic.models.Proof'>
+Switched to prover: eprover
+Processing included file: math/examples/preliminaries.ftl.tex
+Processing included file: math/examples/lang/vocabulary.ftl.tex
+Added synonym: belongs -> belong
+Added synonym: bounds -> bound
+Added synonym: cardinals -> cardinal
+Added synonym: classes -> class
+Added synonym: contains -> contain
+Added synonym: divides -> divide
+Added synonym: divisors -> divisor
+Added synonym: dominoes -> domino
+Added synonym: dwarfs -> dwarf
+Added synonym: elements -> element
+Added synonym: expressions -> expression
+Added synonym: factors -> factor
+Added synonym: files -> file
+Added synonym: formulas -> formula
+Added synonym: functions -> function
+Added synonym: gets -> get
+Added synonym: infima -> infimum
+Added synonym: ideals -> ideal
+Added synonym: integers -> integer
+Added synonym: inverses -> inverse
+Added synonym: involutions -> involution
+Added synonym: joins -> join
+Added synonym: lattices -> lattice
+Added synonym: lies -> lie
+Added synonym: lists -> list
+Added synonym: lives -> live
+Added synonym: maps -> map
+Added synonym: meets -> meet
+Added synonym: members -> member
+Added synonym: numbers -> number
+Added synonym: ordinals -> ordinal
+Added synonym: pairs -> pair
+Added synonym: persons -> person
+Added synonym: points -> point
+Added synonym: predecessors -> predecessor
+Added synonym: preserves -> preserve
+Added synonym: primes -> prime
+Added synonym: ranks -> rank
+Added synonym: reducts -> reduct
+Added synonym: relations -> relation
+Added synonym: semigrous -> semigrou
+Added synonym: sets -> set
+Added synonym: sequences -> sequence
+Added synonym: shaves -> shave
+Added synonym: squares -> square
+Added synonym: subclasses -> subclass
+Added synonym: subsets -> subset
+Added synonym: successors -> successor
+Added synonym: supersets -> superset
+Added synonym: suprema -> supremum
+Added synonym: surjects -> surject
+Added synonym: systems -> system
+Added synonym: terms -> term
+Added synonym: himself -> themselves
+Added synonym: types -> type
+Processing included file: math/examples/lang/macros.ftl.tex
+Added macro: '$x$ and $y$ agree' -> X = Y
+Added macro: '$x$ agrees with $y$' -> X = Y
+Added macro: '$x$ and $y$ are distinct' -> neq(X,Y)
+Added axiom (Sentence): (! [X] : stand_for('$x$ belongs to $X$',X))
+Added axiom (Sentence): (! [X] : stand_for('$X$ contains $x$',X))
+Added axiom (Sentence): (! [X] : stand_for('$x$ is contained in $X$',X))
+Added axiom (Sentence): (! [X] : stand_for('$x$ lies in $X$',X))
+Added axiom (Sentence): (! [X] : stand_for('$x$ is in $X$',X))
+Added axiom (Sentence): (! [F] : stand_for('the domain of $f$',dom(F)))
+Added macro: '$f$ is defined on $X$' -> dom(F) = X
+Added axiom (Sentence): (! [X] : stand_for('the value of $f$ at $x$',f(X)))
+Added axiom (Sentence): (! [X,Y] : stand_for('$f(x,y)$',f(pair(X,Y))))
+Added axiom: (! [S] : (! [T] : (subclass(T,S) <=> class(T))))
+Added axiom (Sentence): (! [T] : stand_for('$T \\subseteq S$',T))
+Added axiom: (! [S,T] : ((subclass(S,T) & subclass(T,S)) => S = T))
+Added axiom: (! [S] : (! [X] : (subset(X,S) <=> (set(X) & subset(X,S)))))
+Added axiom: (! [T] : set(T))
+Added axiom: (! [S] : in(S,S))
+Added axiom: (! [F] : (family(F) <=> (set(F) & (! [X_EVERY] : (element(X_EVERY,F) => a_set(X_EVERY))))))
+Added axiom: (! [F] : (disjoint_family(F) <=> (! [X] : (in(X,F) => (! [Y] : (in(Y,F) => (family(F) & disjoint(X,Y))))))))
+Added axiom: (! [X,Y] : (sets(None) => set(times(X,Y))))
+Added axiom: (! [S,T,X,Y] : (objects(None) => ((in(pair(X,Y),times(S,T)) => in(X,S)) & in(Y,T))))
+Added axiom: (! [F] : function(F))
+Added axiom: (! [S,F] : subclass_the_domain(S,F))
+Added axiom (Sentence): (! [F] : stand_for('$f : S \\rightarrow T$',F))
+Added axiom: (! [X] : (set(X) => set(None)))
+Added macro: '$g$ retracts $f$' -> g(f(X)) = X
+Added macro: '$h$ sections $f$' -> f(h(Y)) = Y
+Checking Theorem: Unknown
+Goal: (! [X] : (set(X) => set(X)))
+Checking Proof (Parallel)... with 1 steps
+Decomposing goal: (! [X] : (set(X) => set(X)))
+  Assumed from goal: set(x)
+  New goal focus: set(x)
+Step 1: Verifying set(x)
+Waiting for verification tasks...
+Step 1: Verification of set(x) -> Failed (eprover)

@@ -326,12 +326,16 @@ class Engine:
             # Treat Lemmas as Axioms if included or generally useful results
             formulas = self.translator.translate_statement(stmt)
             for f in formulas:
-                name = f"ax_{self.counter}"
-                self.counter += 1
-                self.axioms.append((name, f))
-                self.reporter.log(f"Added axiom: {f}")
+                # Skip stand_for predicates in axiom list
+                if isinstance(f, Predicate) and f.name == "stand_for":
+                    pass
+                else:
+                    name = f"ax_{self.counter}"
+                    self.counter += 1
+                    self.axioms.append((name, f))
+                    self.reporter.log(f"Added axiom: {f}")
 
-            # Check for macros
+            # Check for macros (keep log, but don't add to axioms if we skip above)
             for f in formulas:
                 if isinstance(f, Predicate) and f.name == "stand_for":
                     if len(f.args) == 2:
@@ -346,10 +350,14 @@ class Engine:
             # Handle top-level sentences (like 'Let ... stand for ...') as Axioms/Assumptions
             formulas = self.translator.translate_statement(stmt)
             for f in formulas:
-                name = f"ax_{self.counter}"
-                self.counter += 1
-                self.axioms.append((name, f))
-                self.reporter.log(f"Added axiom (Sentence): {f}")
+                # Skip stand_for predicates
+                if isinstance(f, Predicate) and f.name == "stand_for":
+                    pass
+                else:
+                    name = f"ax_{self.counter}"
+                    self.counter += 1
+                    self.axioms.append((name, f))
+                    self.reporter.log(f"Added axiom (Sentence): {f}")
 
             # Check for macros
             for f in formulas:
