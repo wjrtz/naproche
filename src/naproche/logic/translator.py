@@ -283,8 +283,17 @@ class Translator:
 
                 left_f = self.translate_sentence(left_sent, as_axiom=as_axiom)
                 if left_f:
+                    # Heuristic: If left side is a Term (not Formula), don't split.
+                    # This prevents splitting noun phrases like "$x$ and $y$ are ..."
+                    if isinstance(left_f, Term):
+                        continue
+
                     right_f = self.translate_sentence(right_sent, as_axiom=as_axiom)
                     if right_f:
+                        # Also check right side?
+                        if isinstance(right_f, Term):
+                            continue
+
                         return self.expand_colon(And(left_f, right_f))
 
         if "If" in clean_atoms and "then" in clean_atoms:
@@ -509,16 +518,153 @@ class Translator:
         if n_eff == 1 and is_math(effective_atoms[0]):
             return self.expand_colon(self.parse_math_safe(effective_atoms[0]))
 
-        # Handle "Let us show that P" -> P
-        if clean_atoms and len(clean_atoms) >= 4:
-            if clean_atoms[0] == "Let" and clean_atoms[1] == "us" and clean_atoms[2] == "show" and clean_atoms[3] == "that":
-                # Translate remainder as a sentence
-                rest_atoms = clean_atoms[4:]
-                rest_sent = Sentence(text=" ".join(rest_atoms), atoms=rest_atoms)
-                return self.translate_sentence(rest_sent, as_axiom=as_axiom)
+        # Generalized "is/are" logic to handle plural subjects and copula
+        copula_idx = -1
+        if "is" in effective_atoms:
+            copula_idx = effective_atoms.index("is")
+        elif "are" in effective_atoms:
+            copula_idx = effective_atoms.index("are")
+
+        subjects = []
+        if copula_idx > 0 and copula_idx < n_eff:
+             # Scan subjects
+             subj_atoms = effective_atoms[:copula_idx]
+             valid_subjects = True
+
+             for a in subj_atoms:
+                 if is_math(a):
+                     # Extract terms
+                     t = self.parse_math_safe(a)
+                     if not isinstance(t, (Variable, Constant)):
+                         # Try manual split
+                         inner = a.replace("$", "").replace(r"\\[", "").replace(r"\\]", "")
+                         parts = inner.split(",")
+                         for p in parts:
+                             pt = self.parse_math_safe(p.strip())
+                             if isinstance(pt, (Variable, Constant)):
+                                 if as_axiom and isinstance(pt, Constant):
+                                     pt = Variable(pt.name)
+                                 elif not as_axiom and isinstance(pt, Variable):
+                                     pt = Constant(pt.name)
+                                 subjects.append(pt)
+                     else:
+                         if as_axiom and isinstance(t, Constant):
+                             t = Variable(t.name)
+                         elif not as_axiom and isinstance(t, Variable):
+                             t = Constant(t.name)
+                         subjects.append(t)
+                 elif a == "and" or a == ",":
+                     continue
+                 else:
+                     valid_subjects = False
+                     break
+
+             if not valid_subjects:
+                 subjects = []
+
+        if subjects:
+             rest = effective_atoms[copula_idx+1:]
+             cond = None
+             if "such" in rest and "that" in rest:
+                 try:
+                     such_idx = rest.index("such")
+                     if such_idx + 1 < len(rest) and rest[such_idx+1] == "that":
+                         cond_atoms = rest[such_idx+2:]
+                         rest = rest[:such_idx]
+                         cond_sent = Sentence(text=" ".join(cond_atoms), atoms=cond_atoms)
+                         cond = self.translate_sentence(cond_sent, as_axiom=as_axiom)
+                 except: pass
+
+             if rest and rest[0] in ["a", "an"]:
+                 rest = rest[1:]
+
+             is_negated = False
+             if rest and rest[0] == "not":
+                 is_negated = True
+                 rest = rest[1:]
+                 if rest and rest[0] in ["a", "an"]:
+                     rest = rest[1:]
+
+             # Remove trailing subject reference if present (e.g. "... equal to $x$")
+             if len(subjects) == 1 and rest and is_math(rest[-1]):
+                  term = subjects[0]
+                  last_t = self.parse_math_safe(rest[-1])
+                  if isinstance(last_t, (Variable, Constant)) and isinstance(term, (Variable, Constant)):
+                       if last_t.name == term.name:
+                           rest = rest[:-1]
+
+             # Check for "element of" specifically
+             if len(rest) > 1 and "element" in rest and "of" in rest:
+                 of_idx = rest.index("of")
+                 if of_idx + 1 < len(rest) and is_math(rest[of_idx+1]):
+                     domain = parse_term(rest[of_idx+1])
+
+                     all_preds = []
+                     for subj in subjects:
+                         pred = Predicate("in", [subj, domain])
+                         all_preds.append(pred)
+
+                     if len(all_preds) == 1:
+                         res = all_preds[0]
+                     else:
+                         res = all_preds[0]
+                         for p in all_preds[1:]: res = And(res, p)
+
+                     if cond: res = And(res, cond)
+                     if is_negated: return Not(res)
+                     return res
+
+             # Generic parsing with support for "and" splitting
+             segments = []
+             current_seg = []
+             for w in rest:
+                 if w.strip() == "and":
+                     # Don't split if "between" is present in the current segment (e.g. "between A and B")
+                     if "between" in current_seg:
+                         current_seg.append(w)
+                     else:
+                         if current_seg:
+                             segments.append(current_seg)
+                         current_seg = []
+                 else:
+                     current_seg.append(w)
+             if current_seg: segments.append(current_seg)
+
+             preds = []
+             for seg in segments:
+                 # Strip leading a/an if present
+                 eff_seg = seg
+                 if eff_seg and eff_seg[0] in ["a", "an"]:
+                     eff_seg = eff_seg[1:]
+
+                 name_parts = []
+                 args = []
+                 for w in eff_seg:
+                     if is_math(w):
+                         args.append(parse_term(w))
+                     elif w not in ["of", "in", "to", "with", "from", "between", "and"]:
+                         name_parts.append(w)
+
+                 if name_parts:
+                     noun = "_".join(name_parts)
+                     noun = self.normalize_noun(noun)
+
+                     for subj in subjects:
+                         preds.append(Predicate(noun, [subj] + args))
+
+             if preds:
+                 if len(preds) == 1:
+                     res = preds[0]
+                 else:
+                     res = preds[0]
+                     for p in preds[1:]:
+                         res = And(res, p)
+
+                 if cond: res = And(res, cond)
+                 if is_negated: return Not(res)
+                 return res
 
         res = self._translate_logic(clean_atoms, effective_atoms, n, n_eff, parse_term, is_math, as_axiom)
-        # print(f"DEBUG: Result for '{text}': {res}")
         if res:
             return self.expand_colon(res)
         return None
@@ -903,7 +1049,41 @@ class Translator:
             if isinstance(f, Equal): return f
             if isinstance(f, Predicate): return f
 
-        if clean_atoms and clean_atoms[0] == "Take":
+        if clean_atoms and (clean_atoms[0] == "Take" or clean_atoms[0] == "Consider"):
+             # New logic: Try to restructure "Take <Noun> <Var> <Args>" -> "Assume <Var> is <Noun> <Args>"
+
+             # Find the first variable-like math token
+             var_idx = -1
+             for i, a in enumerate(clean_atoms):
+                 if i == 0: continue
+                 if is_math(a):
+                     # Check if it looks like a declaration (simple variables)
+                     # Simple heuristic: if it contains relation operators, it's a formula, not a variable list.
+                     if not any(op in a for op in ["=", "<", ">", r"\in", r"\subset", r"\subseteq"]):
+                         var_idx = i
+                         break
+
+             if var_idx > 1: # Found a variable and there is something between Take and it
+                 # Check if intermediate words are just "a"/"an"
+                 intermediates = clean_atoms[1:var_idx]
+                 has_noun = False
+                 for w in intermediates:
+                     if w not in ["a", "an", "such", "that"]:
+                         has_noun = True
+                         break
+
+                 if has_noun:
+                     var_atom = clean_atoms[var_idx]
+                     prefix = clean_atoms[1:var_idx]
+                     suffix = clean_atoms[var_idx+1:]
+
+                     # Construct synthetic Assume sentence
+                     new_atoms = ["Assume", var_atom, "is"] + prefix + suffix
+                     new_text = " ".join(new_atoms)
+                     new_sent = Sentence(text=new_text, atoms=new_atoms)
+                     # print(f"DEBUG: Transforming Take to {new_text}")
+                     return self.translate_sentence(new_sent, as_axiom=as_axiom)
+
              formulas = []
              cond = None
              if "that" in clean_atoms:
