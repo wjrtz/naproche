@@ -518,6 +518,14 @@ class Translator:
         if n_eff == 1 and is_math(effective_atoms[0]):
             return self.expand_colon(self.parse_math_safe(effective_atoms[0]))
 
+        # Handle "Let us show that P" -> P
+        if clean_atoms and len(clean_atoms) >= 4:
+            if clean_atoms[0] == "Let" and clean_atoms[1] == "us" and clean_atoms[2] == "show" and clean_atoms[3] == "that":
+                # Translate remainder as a sentence
+                rest_atoms = clean_atoms[4:]
+                rest_sent = Sentence(text=" ".join(rest_atoms), atoms=rest_atoms)
+                return self.translate_sentence(rest_sent, as_axiom=as_axiom)
+
         # Generalized "is/are" logic to handle plural subjects and copula
         copula_idx = -1
         if "is" in effective_atoms:
@@ -1050,39 +1058,102 @@ class Translator:
             if isinstance(f, Predicate): return f
 
         if clean_atoms and (clean_atoms[0] == "Take" or clean_atoms[0] == "Consider"):
-             # New logic: Try to restructure "Take <Noun> <Var> <Args>" -> "Assume <Var> is <Noun> <Args>"
-
-             # Find the first variable-like math token
+             # Check for "Take <NounPhrase> <Var>"
+             # Scan for first variable-like math token
              var_idx = -1
              for i, a in enumerate(clean_atoms):
                  if i == 0: continue
                  if is_math(a):
                      # Check if it looks like a declaration (simple variables)
-                     # Simple heuristic: if it contains relation operators, it's a formula, not a variable list.
                      if not any(op in a for op in ["=", "<", ">", r"\in", r"\subset", r"\subseteq"]):
                          var_idx = i
                          break
 
-             if var_idx > 1: # Found a variable and there is something between Take and it
-                 # Check if intermediate words are just "a"/"an"
+             # If we found a variable and there are words between Take and Var
+             if var_idx > 1:
                  intermediates = clean_atoms[1:var_idx]
-                 has_noun = False
-                 for w in intermediates:
-                     if w not in ["a", "an", "such", "that"]:
-                         has_noun = True
-                         break
+                 # Filter generic articles
+                 noun_words = [w for w in intermediates if w not in ["a", "an"]]
 
-                 if has_noun:
+                 if noun_words:
+                     # It is likely "Take <Noun> <Var>"
+                     # e.g. "Take a surjective function $f$"
+
+                     # Parse variables
                      var_atom = clean_atoms[var_idx]
-                     prefix = clean_atoms[1:var_idx]
-                     suffix = clean_atoms[var_idx+1:]
+                     variables = []
+                     t = self.parse_math_safe(var_atom)
+                     if isinstance(t, (Variable, Constant)):
+                         if as_axiom and isinstance(t, Constant):
+                             t = Variable(t.name)
+                         elif not as_axiom and isinstance(t, Variable):
+                             t = Constant(t.name)
+                         variables.append(t)
+                     else:
+                         # Manual split for comma list inside math token
+                         inner = var_atom.replace("$", "").replace(r"\\[", "").replace(r"\\]", "")
+                         parts = inner.split(",")
+                         for p in parts:
+                             pt = self.parse_math_safe(p.strip())
+                             if isinstance(pt, (Variable, Constant)):
+                                 if as_axiom and isinstance(pt, Constant):
+                                     pt = Variable(pt.name)
+                                 elif not as_axiom and isinstance(pt, Variable):
+                                     pt = Constant(pt.name)
+                                 variables.append(pt)
 
-                     # Construct synthetic Assume sentence
-                     new_atoms = ["Assume", var_atom, "is"] + prefix + suffix
-                     new_text = " ".join(new_atoms)
-                     new_sent = Sentence(text=new_text, atoms=new_atoms)
-                     # print(f"DEBUG: Transforming Take to {new_text}")
-                     return self.translate_sentence(new_sent, as_axiom=as_axiom)
+                     # Parse condition "such that ..."
+                     rest = clean_atoms[var_idx+1:]
+                     cond = None
+                     if "such" in rest and "that" in rest:
+                         try:
+                             such_idx = rest.index("such")
+                             if such_idx + 1 < len(rest) and rest[such_idx+1] == "that":
+                                 cond_atoms = rest[such_idx+2:]
+                                 rest = rest[:such_idx]
+                                 cond_sent = Sentence(text=" ".join(cond_atoms), atoms=cond_atoms)
+                                 cond = self.translate_sentence(cond_sent, as_axiom=as_axiom)
+                         except: pass
+
+                     # Parse Noun Phrase + Args from the suffix (rest)
+                     # e.g. "... from M to P"
+                     name_parts = []
+                     args = []
+
+                     # Combine noun_words (prefix) and rest (suffix args)
+                     # But we need to distinguish noun from args.
+                     # Typically noun is before var. Args are after var.
+                     # "surjective function" $f$ "from M to P"
+
+                     # Noun part
+                     for w in noun_words:
+                         if not is_math(w) and w not in ["of", "in", "to", "with", "from"]:
+                             name_parts.append(w)
+
+                     # Arg part (from suffix)
+                     for w in rest:
+                         if is_math(w):
+                             args.append(parse_term(w))
+                         elif w not in ["of", "in", "to", "with", "from", "between", "and"]:
+                             name_parts.append(w)
+
+                     if name_parts:
+                         noun = "_".join(name_parts)
+                         noun = self.normalize_noun(noun)
+
+                         preds = []
+                         for v in variables:
+                             preds.append(Predicate(noun, [v] + args))
+
+                         if preds:
+                             if len(preds) == 1:
+                                 res = preds[0]
+                             else:
+                                 res = preds[0]
+                                 for p in preds[1:]: res = And(res, p)
+
+                             if cond: res = And(res, cond)
+                             return res
 
              formulas = []
              cond = None
